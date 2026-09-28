@@ -16,7 +16,7 @@
     "nouns": 437,
     "verbs": 105,
     "roles": 6,
-    "train_sha256": "96da2bc505a7b232a0b16cfef5ca0dac3d0994117f91c79e379df82b3680dc7a",
+    "train_sha256": "78ff1fa90ce90dbac6feb924dcf8c3e5dff7fe4e9470eec236e774d147805064",
     "vocabulary_sha256": "1ed0d712eb8a00d39a6c68dd50fc76c5eb77405594bd9f2ea13657870c792f69"
   },
   "prototype_note": "The exact HEIR prototype artifact is required. Missing files or differing hashes are errors; regeneration is not a substitute."

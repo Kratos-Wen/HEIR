@@ -13,17 +13,17 @@ The dataset is hosted at [KratosWen/HEIR on Hugging Face](https://huggingface.co
 | Test | 2,957 | 13,005 | 11,783 |
 | Total | 18,730 | 78,345 | 68,803 |
 
-The vocabulary contains 105 actions, 437 nouns and six functional roles. The paper release is `v1.0-rc2`. Its images reuse the existing `release/v1.0-rc1/images/` files: all 18,730 image SHA-256 values match the paper's image manifest. The older image directory contains additional files outside the paper splits; the downloader selects only the paper images and restores the filenames expected by the annotations.
+The vocabulary contains 105 actions, 437 nouns and six functional roles. **v1.0** contains all 18,730 paper images in `release/v1.0/images/`, alongside annotations and metadata. The downloader verifies image hashes and installs the exact paths referenced by the annotations.
 
 ## Direct annotation downloads
 
 The download script below also installs these files and checks their hashes. For manual access:
 
-- [Train annotations](https://huggingface.co/datasets/KratosWen/HEIR/resolve/4c3d43e49255f6fccd76c85f13592d9e4b225ab2/release/v1.0-rc2/annotations/train.json)
-- [Validation annotations](https://huggingface.co/datasets/KratosWen/HEIR/resolve/4c3d43e49255f6fccd76c85f13592d9e4b225ab2/release/v1.0-rc2/annotations/val.json)
-- [Test annotations](https://huggingface.co/datasets/KratosWen/HEIR/resolve/4c3d43e49255f6fccd76c85f13592d9e4b225ab2/release/v1.0-rc2/annotations/test.json)
-- [Vocabulary](https://huggingface.co/datasets/KratosWen/HEIR/resolve/4c3d43e49255f6fccd76c85f13592d9e4b225ab2/release/v1.0-rc2/vocabulary.json)
-- [Image provenance](https://huggingface.co/datasets/KratosWen/HEIR/resolve/4c3d43e49255f6fccd76c85f13592d9e4b225ab2/release/v1.0-rc2/images.json)
+- [Train annotations](https://huggingface.co/datasets/KratosWen/HEIR/resolve/8bcdf5ee6d545930d2574707a8f146e2c67069d9/release/v1.0/annotations/train.json)
+- [Validation annotations](https://huggingface.co/datasets/KratosWen/HEIR/resolve/8bcdf5ee6d545930d2574707a8f146e2c67069d9/release/v1.0/annotations/val.json)
+- [Test annotations](https://huggingface.co/datasets/KratosWen/HEIR/resolve/8bcdf5ee6d545930d2574707a8f146e2c67069d9/release/v1.0/annotations/test.json)
+- [Vocabulary](https://huggingface.co/datasets/KratosWen/HEIR/resolve/8bcdf5ee6d545930d2574707a8f146e2c67069d9/release/v1.0/vocabulary.json)
+- [Image provenance](https://huggingface.co/datasets/KratosWen/HEIR/resolve/8bcdf5ee6d545930d2574707a8f146e2c67069d9/release/v1.0/images.json)
 
 ## Download
 
@@ -62,7 +62,7 @@ HEIR/
   MANIFEST.sha256
 ```
 
-`images.json` records image provenance, split membership and SHA-256. `image_files.json` maps local filenames to the existing Hugging Face image paths. The raw annotation JSON is nested under an `images` key; the provided downloader prepares the native format used by CoRISP.
+`images.json` records image provenance, split membership and SHA-256. `image_files.json` maps local filenames to their v1.0 Hugging Face image paths. The raw annotation JSON is nested under an `images` key; the provided downloader prepares the native format used by CoRISP.
 
 ## Evaluation scope
 

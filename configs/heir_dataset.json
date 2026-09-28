@@ -1,8 +1,8 @@
 {
   "repo_id": "KratosWen/HEIR",
-  "revision": "4c3d43e49255f6fccd76c85f13592d9e4b225ab2",
-  "release": "v1.0-rc2",
-  "image_revision": "05ba21b81fa38356a2d1828a9d97ad14c94dedc2",
+  "revision": "8bcdf5ee6d545930d2574707a8f146e2c67069d9",
+  "release": "v1.0",
+  "image_revision": "8bcdf5ee6d545930d2574707a8f146e2c67069d9",
   "split_counts": {
     "train": 15158,
     "val": 615,
@@ -12,38 +12,38 @@
   "image_bytes": 4401789583,
   "files": {
     "vocabulary.json": {
-      "path": "release/v1.0-rc2/vocabulary.json",
+      "path": "release/v1.0/vocabulary.json",
       "sha256": "1ed0d712eb8a00d39a6c68dd50fc76c5eb77405594bd9f2ea13657870c792f69",
       "size": 165030
     },
     "annotations/train.json": {
-      "path": "release/v1.0-rc2/annotations/train.json",
-      "sha256": "96da2bc505a7b232a0b16cfef5ca0dac3d0994117f91c79e379df82b3680dc7a",
-      "size": 12317669
+      "path": "release/v1.0/annotations/train.json",
+      "sha256": "78ff1fa90ce90dbac6feb924dcf8c3e5dff7fe4e9470eec236e774d147805064",
+      "size": 12317665
     },
     "annotations/val.json": {
-      "path": "release/v1.0-rc2/annotations/val.json",
-      "sha256": "5ddd015c1572dbcd77c2fb47e99a4307270f451e2baecb8ce34004f59b22c937",
-      "size": 560936
+      "path": "release/v1.0/annotations/val.json",
+      "sha256": "ad2d11d9b70749fd54c5f85bdfeb462610ca466fdedf252fc77df1467516e878",
+      "size": 560932
     },
     "annotations/test.json": {
-      "path": "release/v1.0-rc2/annotations/test.json",
-      "sha256": "276d8f2683571510ff56502da2365714db32201e73d95183cccd905a093112e7",
-      "size": 2556523
+      "path": "release/v1.0/annotations/test.json",
+      "sha256": "a450a2c64a33ab833ee47c7f5da4d7e6e762c7006f390dd786c67d75133924bd",
+      "size": 2556519
     },
     "images.json": {
-      "path": "release/v1.0-rc2/images.json",
+      "path": "release/v1.0/images.json",
       "sha256": "76e2404940d8bb5daddf715e52a44ead117f0510981e640e148ba7be025aa34d",
       "size": 5738249
     },
     "image_files.json": {
-      "path": "release/v1.0-rc2/image_files.json",
-      "sha256": "be4d0cf7ce970746f33a552ba189841798c0579291b108615aa529cff848925c",
-      "size": 3983311
+      "path": "release/v1.0/image_files.json",
+      "sha256": "a0f8092355eb00c66aee22472406f88ef6471dbe7c7726607ca511efe13cc6f7",
+      "size": 3908391
     },
     "MANIFEST.sha256": {
-      "path": "release/v1.0-rc2/MANIFEST.sha256",
-      "sha256": "ab4112617b1afa653bce6e1c8600212d20187d1675deccd2582be099f93567ee",
+      "path": "release/v1.0/MANIFEST.sha256",
+      "sha256": "49147c3384ba79272222515b2b39e0c87421afb7b500d4d8556a92a012c010e5",
       "size": 507
     },
     "CITATION.bib": {
@@ -58,13 +58,13 @@
     },
     "LICENSE.md": {
       "path": "LICENSE.md",
-      "sha256": "7d2cac9e715c62d536d0e4d445a0cd87ec51b68672f6b976723ce40dca8affb6",
-      "size": 976
+      "sha256": "ab788d3ef641463e7fe313e2a4a909d05b4e6e20f847ca111a078177cffe617d",
+      "size": 968
     },
     "README.md": {
       "path": "README.md",
-      "sha256": "e0025602ec96f13423dbeacc228d39faae65767039e61418189b1dc0c20ff3da",
-      "size": 3710
+      "sha256": "634c7157b4676106ce905979505adde8f3703a6931391fe93faed6d6612da913",
+      "size": 3738
     }
   }
 }
