@@ -1,0 +1,5 @@
+{
+  "QPIC_R101_PARAM_PATH": "/path/to/qpic_r101_param_path",
+  "QPIC_R50_PARAM_PATH": "/path/to/qpic_r50_param_path",
+  "VCOCO": "/path/to/vcoco"
+}

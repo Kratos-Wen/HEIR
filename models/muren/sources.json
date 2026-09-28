@@ -1,0 +1,31 @@
+{
+  "MUREN": {
+    "url": "https://github.com/OreoChocolate/MUREN",
+    "commit": "d7c8e63fad33eb0bd846dd36b3a8dbe536d8a39b",
+    "patch": "patches/MUREN.patch",
+    "verified_sha256": {
+      "README.md": "af3f2a8704349fffd0bbf81b1f85bc6952db54cbeceb86c2c858bc1ca95cb1ee",
+      "datasets/__init__.py": "1c16cb1a645a9ecba11c0eae5f823880e90853404e83c182a186f5a361f6cd26",
+      "datasets/hico.py": "16232543e68f2bb07b7275e7d95368fb21a2d932b2cf993c632648e92af08ba4",
+      "datasets/hico_eval.py": "55e7f3872d7ee0d14ca92295495b1ee9b5c95cbb615022d49868dc515d9d8982",
+      "datasets/hico_eval_ko.py": "ceafac9346fbcd1ea57fa42deb2711486a5cefe4c72657fc0d20a4c4e79ddf72",
+      "datasets/transforms.py": "fcb79dcc1f099c68be1fd4ad1b8d38b3ec419d72b404f55bbe9aa845162ccf1b",
+      "datasets/vcoco.py": "49a97744981d5720aaae6d42677d791dc5d827529b464062cbe00fd3b4e24942",
+      "datasets/vcoco_eval.py": "cad6fb7c1df5bdd780b42bc93fb174b52af12fbe1d68516631b43126f80e2260",
+      "engine.py": "fc743f3bb01d67dfea0f3de3a58802180ef1f8fd5649f16111449205218df6c7",
+      "env.yaml": "128b3b47a519321eb07e4ec69f0b150871430735ab6e64b7468ce97625809bb2",
+      "generate_vcoco_official.py": "fccad1a7a4384a089e345dae477b4c82b787c9296c3142d187c7661ebe5f8090",
+      "main.py": "0a2a265ec15945f523266edd0b13f1d2a4d72b7e692120ac0ae6916051d3d85e",
+      "models/__init__.py": "5ede07dbacf04be7a8a206f155d0646718e1a86446c83dab2df04f699472ca14",
+      "models/backbone.py": "7591bdba9188d5b95966a3252808ec9d44de411788b82f86690f914390ae953e",
+      "models/hoi.py": "20f25a04caeea0fb58f1886ec309d98a5276c6ea5575030ae3118ab454342191",
+      "models/matcher.py": "889b5f5d7cb2556846a3ac41c4a5ad05c7d945f2a8cbc71dc33c8409b59e83d5",
+      "models/muren.py": "1ba340bc27c0a2a40e5e991ef7d1b05357ceb54fcfe6523f0cf7e61c17029a1d",
+      "models/position_encoding.py": "516022b801cf06127b891b8156f61d95db3b4891d1d8385410dc070650ebd31e",
+      "models/transformer.py": "372b833f5af8208203af388d4e23946fbe6bc7b0069186333a73820aa6db58d6",
+      "util/__init__.py": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+      "util/box_ops.py": "3e816803700e68b5514d90f92d87823c477b9397b2a9c6e5717ce891419ccb69",
+      "util/misc.py": "7ff499d1dd19a886df20260f659bfeabf7c4064ece552bf1362e42d65329d69c"
+    }
+  }
+}

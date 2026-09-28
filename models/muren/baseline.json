@@ -1,0 +1,96 @@
+{
+  "assets": {
+    "CHECKPOINT": {
+      "mounts": [
+        [
+          "assets/vcoco-best.pth",
+          ""
+        ]
+      ],
+      "sha256": {}
+    },
+    "VCOCO": {
+      "mounts": [
+        [
+          "data/v-coco",
+          ""
+        ]
+      ],
+      "sha256": {}
+    }
+  },
+  "commands": {
+    "sources": {
+      "argv": [
+        "{python}",
+        "{root}/workspace/fetch_sources.py"
+      ],
+      "assets": [],
+      "cwd": "{root}/workspace",
+      "distributed": false,
+      "run_name": "sources",
+      "world_size": 1,
+      "pythonpath": [
+        "workspace"
+      ]
+    },
+    "infer": {
+      "argv": [
+        "{python}",
+        "generate_vcoco_official.py",
+        "--param_path",
+        "{root}/assets/vcoco-best.pth",
+        "--save_path",
+        "{output}/predictions.pkl",
+        "--hoi_path",
+        "{root}/data/v-coco",
+        "--num_queries",
+        "100",
+        "--dec_layers",
+        "6",
+        "--batch_size",
+        "1",
+        "--num_workers",
+        "2",
+        "--backbone",
+        "resnet50",
+        "--use_nms_filter"
+      ],
+      "assets": [
+        "VCOCO",
+        "CHECKPOINT"
+      ],
+      "cwd": "{root}/workspace/reference_repos/MUREN",
+      "distributed": false,
+      "run_name": "muren",
+      "world_size": 1
+    },
+    "score": {
+      "argv": [
+        "{python}",
+        "{root}/workspace/vcoco_eval/scripts/evaluate_vcoco_official.py",
+        "--cache",
+        "{output}/predictions.pkl",
+        "--vsrl-json",
+        "{root}/data/v-coco/data/vcoco/vcoco_test.json",
+        "--coco-json",
+        "{root}/data/v-coco/data/instances_vcoco_all_2014.json",
+        "--split-ids",
+        "{root}/data/v-coco/data/splits/vcoco_test.ids",
+        "--evaluator",
+        "{root}/data/v-coco/vsrl_eval.py",
+        "--output-json",
+        "{output}/official_metrics.json",
+        "--agent-ap"
+      ],
+      "assets": [
+        "VCOCO"
+      ],
+      "cwd": "{root}/workspace",
+      "distributed": false,
+      "run_name": "muren",
+      "world_size": 1
+    }
+  },
+  "family": "muren"
+}

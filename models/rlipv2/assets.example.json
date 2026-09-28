@@ -1,0 +1,7 @@
+{
+  "RLIPV2_SWINL_PARAM_PATH": "/path/to/rlipv2_swinl_param_path",
+  "RLIPV2_SWINL_TEXT_ENCODER_TYPE": "/path/to/rlipv2_swinl_text_encoder_type",
+  "RLIPV2_SWINT_PARAM_PATH": "/path/to/rlipv2_swint_param_path",
+  "RLIPV2_SWINT_TEXT_ENCODER_TYPE": "/path/to/rlipv2_swint_text_encoder_type",
+  "VCOCO": "/path/to/vcoco"
+}

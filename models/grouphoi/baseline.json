@@ -1,0 +1,75 @@
+{
+  "assets": {
+    "GROUP_ASSETS": {
+      "mounts": [
+        [
+          "workspace/assets/group_hoi_reproduction",
+          ""
+        ]
+      ],
+      "sha256": {}
+    },
+    "VCOCO": {
+      "mounts": [
+        [
+          "data/v-coco",
+          ""
+        ]
+      ],
+      "sha256": {}
+    }
+  },
+  "commands": {
+    "sources": {
+      "argv": [
+        "{python}",
+        "{root}/workspace/fetch_sources.py"
+      ],
+      "assets": [],
+      "cwd": "{root}/workspace",
+      "distributed": false,
+      "run_name": "sources",
+      "world_size": 1,
+      "pythonpath": [
+        "workspace"
+      ]
+    },
+    "test": {
+      "argv": [
+        "{python}",
+        "-m",
+        "reproductions.group_hoi.run",
+        "--output",
+        "{output}",
+        "--checkpoint",
+        "{output}/checkpoint_epoch_090.pth"
+      ],
+      "assets": [
+        "VCOCO",
+        "GROUP_ASSETS"
+      ],
+      "cwd": "{root}/workspace",
+      "distributed": true,
+      "run_name": "grouphoi",
+      "world_size": 2
+    },
+    "train": {
+      "argv": [
+        "{python}",
+        "-m",
+        "reproductions.group_hoi.run",
+        "--output",
+        "{output}"
+      ],
+      "assets": [
+        "VCOCO",
+        "GROUP_ASSETS"
+      ],
+      "cwd": "{root}/workspace",
+      "distributed": true,
+      "run_name": "grouphoi",
+      "world_size": 2
+    }
+  },
+  "family": "grouphoi"
+}

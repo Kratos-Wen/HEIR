@@ -1,0 +1,14 @@
+{
+  ".gitignore": "0a74670c2982fc55b0010147c2f459b52efa816a05fa265f5097d9eda3761712",
+  "README.md": "0c3c18988eee6e756ad663433075ac1b3ba05921f3a593d583b05db936e60339",
+  "assets.example.json": "bf9dd2977ccb93c0a6b72858759350e4440869d232353e2603cbef416cee5ef7",
+  "baseline.json": "50b1f955f473988c04683f588ab4a3b7d46de9229dfb09e43f111bf89a70b0c6",
+  "baseline.py": "b6bc81a0d32ac6d4c82af96a803c19858779c938080d444214e191546c913c9d",
+  "patches/pvic.patch": "f5f4f24103330f21405f50b42806cd780f17c7bbd7219c79c19aa5d92cda0027",
+  "sources.json": "60fcc457a00787e68ed4a0f5f409f4461dc163266528d758f3a98750825a6492",
+  "test_baseline.py": "6693fa01f7fbbf249db6560ac03abca31982d3fd0bd0111ac61c758c6f96c8d8",
+  "workspace/fetch_sources.py": "965043ea8ac2bd6afdb3fe1e2e6996d874ab9417e7b773f18b64a6d6698fff86",
+  "workspace/reproductions/__init__.py": "682beed2b3c32ee0a73998f91527bedb6c22b5a2ccb7cc3097fa63cb0ac21684",
+  "workspace/vcoco_eval/scripts/evaluate_vcoco_official.py": "fd03b388cc2762df6049184805de03293430fdfaa84530c9f22e48afdbef407e",
+  "workspace/vcoco_eval/tests/test_vcoco_official_eval_parser.py": "d64b04463f9392a5cb0d8c6946ab8bb9eccf90376ce86701194ae8fcb8c763a3"
+}

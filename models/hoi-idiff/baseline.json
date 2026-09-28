@@ -1,0 +1,60 @@
+{
+  "assets": {
+    "VCOCO": {
+      "mounts": [
+        [
+          "data/v-coco",
+          ""
+        ],
+        [
+          "workspace/reference_repos/pvic/vcoco/mscoco2014",
+          "images"
+        ]
+      ],
+      "sha256": {}
+    }
+  },
+  "commands": {
+    "sources": {
+      "argv": [
+        "{python}",
+        "{root}/workspace/fetch_sources.py"
+      ],
+      "assets": [],
+      "cwd": "{root}/workspace",
+      "distributed": false,
+      "run_name": "sources",
+      "world_size": 1,
+      "pythonpath": [
+        "workspace"
+      ]
+    },
+    "score-cache": {
+      "argv": [
+        "{python}",
+        "{root}/workspace/vcoco_eval/scripts/evaluate_vcoco_official.py",
+        "--cache",
+        "{output}/predictions.pkl",
+        "--vsrl-json",
+        "{root}/data/v-coco/data/vcoco/vcoco_test.json",
+        "--coco-json",
+        "{root}/data/v-coco/data/instances_vcoco_all_2014.json",
+        "--split-ids",
+        "{root}/data/v-coco/data/splits/vcoco_test.ids",
+        "--evaluator",
+        "{root}/data/v-coco/vsrl_eval.py",
+        "--output-json",
+        "{output}/official_metrics.json",
+        "--agent-ap"
+      ],
+      "assets": [
+        "VCOCO"
+      ],
+      "cwd": "{root}/workspace",
+      "distributed": false,
+      "run_name": "score-cache",
+      "world_size": 1
+    }
+  },
+  "family": "hoi-idiff"
+}

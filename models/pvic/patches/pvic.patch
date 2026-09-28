@@ -1,0 +1,317 @@
+diff --git a/run_native_vcoco.py b/run_native_vcoco.py
+new file mode 100644
+index 0000000..8d67ae2
+--- /dev/null
++++ b/run_native_vcoco.py
+@@ -0,0 +1,311 @@
++"""Published PViC modules/recipe with train-only execution and official export.
++
++Only runtime adaptations are made: multi-node device binding, fixed final
++checkpoint selection, and complete official-test image coverage. Native PViC
++has 24 visible action-role outputs; no CoRISP/null/Function-8 head is added.
++"""
++
++import argparse
++import hashlib
++import json
++import os
++from pathlib import Path
++import pickle
++import random
++import sys
++import time
++
++ROOT = Path(__file__).resolve().parent
++sys.path.insert(0, str(ROOT / "pocket"))
++sys.path.insert(0, str(ROOT / "h_detr/models/ops"))
++
++import numpy as np
++from PIL import Image
++import torch
++import torch.distributed as dist
++from torch.nn.parallel import DistributedDataParallel
++from torch.utils.data import DataLoader, DistributedSampler, Dataset, Subset
++
++from configs import advanced_detector_args
++from pvic import build_detector
++from utils import DataFactory, custom_collate
++from detr.datasets import transforms as T
++
++WORKSPACE = ROOT.parents[1]
++DATA = WORKSPACE.parent / "data/v-coco"
++DETECTOR = WORKSPACE.parent / "pvic/checkpoints/h-defm-detr-swinL-dp0-mqs-lft-iter-2stg-vcoco.pth"
++ARCHITECTURE = "official_pvic_hdetr_swinl_vcoco_native24_seed42"
++ALL_ACTIONS = ("hold_obj", "stand", "sit_instr", "ride_instr", "walk", "look_obj",
++    "hit_instr", "hit_obj", "eat_obj", "eat_instr", "jump_instr", "lay_instr",
++    "talk_on_phone_instr", "carry_obj", "throw_obj", "catch_obj", "cut_instr", "cut_obj",
++    "run", "work_on_computer_instr", "ski_instr", "surf_instr", "skateboard_instr", "smile",
++    "drink_instr", "kick_obj", "point_instr", "read_obj", "snowboard_instr")
++
++
++def digest(path):
++    result = hashlib.sha256()
++    with Path(path).open("rb") as handle:
++        for block in iter(lambda: handle.read(8 * 1024 * 1024), b""):
++            result.update(block)
++    return result.hexdigest()
++
++
++def atomic_json(path, value):
++    temporary = path.with_suffix(".partial")
++    temporary.write_text(json.dumps(value, indent=2, allow_nan=False) + "\n")
++    temporary.replace(path)
++
++
++def source_hashes():
++    return {str(path.relative_to(ROOT)): digest(path) for path in sorted(ROOT.rglob("*.py"))}
++
++
++def arguments():
++    parser = argparse.ArgumentParser(parents=[advanced_detector_args()])
++    parser.add_argument("--mode", choices=["validate", "train", "test"], required=True)
++    parser.add_argument("--resume", default="")
++    parser.set_defaults(backbone="swin_large", drop_path_rate=.5, num_queries_one2one=900,
++                        num_queries_one2many=1500, use_checkpoint=True, dataset="vcoco",
++                        data_root=str(ROOT / "vcoco"), pretrained=str(DETECTOR))
++    args = parser.parse_args()
++    args.detector = "advanced"
++    args.kv_src = "C5"
++    args.repr_dim = 384
++    args.triplet_enc_layers = 1
++    args.triplet_dec_layers = 2
++    args.raw_lambda = 1.7
++    args.alpha, args.gamma = .5, .1
++    args.box_score_thresh = .05
++    args.min_instances, args.max_instances = 3, 15
++    args.num_verbs = 24
++    args.seed = 42
++    if (args.epochs, args.lr_head, args.lr_drop, args.lr_drop_factor,
++            args.batch_size, args.weight_decay) != (30, 1e-4, 20, .2, 16, 1e-4):
++        raise ValueError("Preserve the native published PViC training recipe")
++    return args
++
++
++def training_data():
++    data = DataFactory("vcoco", "trainval", str(ROOT / "vcoco"))
++    official_ids = {int(x) for x in (DATA / "data/splits/vcoco_trainval.ids").read_text().split()}
++    if set(data.dataset._image_ids) != official_ids or len(official_ids) != 5400:
++        raise ValueError("Converted training split differs from official trainval")
++    if data.dataset.actions != [v.replace("_obj", " obj").replace("_instr", " instr")
++                                for v in ALL_ACTIONS if v.endswith(("_obj", "_instr")) and v != "point_instr"]:
++        raise ValueError("Unexpected native PViC action-role order")
++    return data
++
++
++class RGBTest(Dataset):
++    def __init__(self):
++        self.ids = [int(x) for x in (DATA / "data/splits/vcoco_test.ids").read_text().split()]
++        assert len(set(self.ids)) == len(self.ids) == 4946
++        self.transforms = T.Compose([T.RandomResize([800], max_size=1333), T.ToTensor(),
++            T.Normalize([.485, .456, .406], [.229, .224, .225])])
++
++    def __len__(self):
++        return len(self.ids)
++
++    def __getitem__(self, index):
++        image_id = self.ids[index]
++        image = Image.open(DATA / "images/val2014" / f"COCO_val2014_{image_id:012d}.jpg").convert("RGB")
++        size = image.size
++        image, _ = self.transforms(image, None)
++        return image, {"id": image_id, "original_wh": size}
++
++
++def export(prediction, target, action_names):
++    boxes = prediction["boxes"].detach().cpu()
++    pairs = prediction["pairing"].detach().cpu()
++    if pairs.ndim != 2 or pairs.shape[1] != 2:
++        raise ValueError("Native PViC pair layout must be [N,2]")
++    height, width = prediction["size"].detach().cpu().tolist()
++    ow, oh = target["original_wh"]
++    boxes = boxes * torch.tensor([ow / width, oh / height, ow / width, oh / height])
++    records = []
++    for pair, score, action in zip(pairs, prediction["scores"].detach().cpu(), prediction["labels"].detach().cpu()):
++        record = {"image_id": target["id"], "person_box": boxes[pair[0]].tolist()}
++        for name in ALL_ACTIONS:
++            if name.endswith(("_obj", "_instr")):
++                record[name] = [0., 0., .1, .1, 0.]
++                record[name.rsplit("_", 1)[0] + "_agent"] = 0.
++            else:
++                record[name + "_agent"] = 0.
++        name = action_names[int(action)].replace(" ", "_")
++        record[name] = boxes[pair[1]].tolist() + [float(score)]
++        record[name.rsplit("_", 1)[0] + "_agent"] = float(score)
++        records.append(record)
++    return records
++
++
++def rng_state():
++    return {"torch": torch.get_rng_state(), "cuda": torch.cuda.get_rng_state(),
++            "numpy": np.random.get_state(), "python": random.getstate()}
++
++
++def main():
++    args = arguments()
++    distributed = "RANK" in os.environ
++    rank, world, local = (int(os.environ.get(key, default)) for key, default in
++                          [("RANK", "0"), ("WORLD_SIZE", "1"), ("LOCAL_RANK", "0")])
++    torch.cuda.set_device(local)
++    if distributed:
++        dist.init_process_group("nccl")
++    torch.manual_seed(42 + rank)
++    np.random.seed(42 + rank)
++    random.seed(42 + rank)
++    device = torch.device("cuda", local)
++    output = Path(args.output_dir)
++    output.mkdir(parents=True, exist_ok=True)
++    data = training_data()
++    mapping = [data.dataset.object_to_action[index] for index in range(1, 81)]
++    model = build_detector(args, mapping).to(device)
++    model.freeze_detector()
++    sources = source_hashes()
++    protocol = {"architecture": ARCHITECTURE, "sources": sources,
++        "detector_sha256": digest(DETECTOR), "training_json_sha256": digest(ROOT / "vcoco/instances_vcoco_trainval.json"),
++        "seed": 42, "world_size": 8, "batch_size": 16, "epochs": 30,
++        "lr": 1e-4, "weight_decay": 1e-4, "lr_drop_epoch": 20, "lr_drop_factor": .2,
++        "selection": "fixed epoch 30; no test-set selection",
++        "training_images": len(data), "official_trainval_images": 5400,
++        "native_visible_role_only": True, "corisp_modules": False,
++        "test_annotations_read_in_training": False}
++    if args.mode == "validate":
++        model.train()
++        images, targets = custom_collate([data[0], data[1]])
++        targets = [{k: v.to(device) if torch.is_tensor(v) else v for k, v in t.items()} for t in targets]
++        losses = model([im.to(device) for im in images], targets)
++        loss = sum(losses.values())
++        loss.backward()
++        assert torch.isfinite(loss)
++        for name, p in model.named_parameters():
++            if not p.requires_grad:
++                assert p.grad is None, name
++            elif p.grad is not None:
++                assert torch.isfinite(p.grad).all(), name
++        model.eval()
++        with torch.no_grad():
++            prediction = model([images[0].to(device)])[0]
++        records = export(prediction, {"id": 1, "original_wh": (640, 480)}, data.dataset.actions)
++        assert records and "cut_instr" in records[0] and "cut_obj" in records[0]
++        atomic_json(output / "protocol.json", protocol)
++        atomic_json(output / "conformance.json", {"loss": float(loss.detach()), "finite_gradients": True,
++                    "detector_frozen": True, "export_records": len(records), "test_read": False,
++                    "peak_allocated_mib": torch.cuda.max_memory_allocated() / 2**20})
++        print(json.dumps({"phase": "validated", "loss": float(loss), "training_images": len(data)}), flush=True)
++        return
++    saved_protocol = json.loads((output / "protocol.json").read_text())
++    if saved_protocol != protocol:
++        raise ValueError("Sources, inputs or protocol changed after qualification")
++    fingerprint = digest(output / "protocol.json")
++    checkpoint = None
++    if args.resume:
++        checkpoint = torch.load(args.resume, map_location="cpu", weights_only=False)
++        if checkpoint["protocol_sha256"] != fingerprint:
++            raise ValueError("Checkpoint protocol mismatch")
++        model.load_state_dict(checkpoint["model_state_dict"], strict=True)
++    if args.mode == "train":
++        if world != 8:
++            raise ValueError("Formal recipe requires eight ranks")
++        sampler = DistributedSampler(data, num_replicas=world, rank=rank, seed=42, drop_last=True)
++        loader = DataLoader(data, batch_size=2, sampler=sampler, num_workers=2,
++                            collate_fn=custom_collate, pin_memory=True)
++        optimizer = torch.optim.AdamW([p for p in model.parameters() if p.requires_grad], lr=1e-4, weight_decay=1e-4)
++        scheduler = torch.optim.lr_scheduler.StepLR(optimizer, 20, gamma=.2)
++        start = 0
++        if checkpoint:
++            optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
++            scheduler.load_state_dict(checkpoint["scheduler_state_dict"])
++            state = checkpoint["rng"][rank]
++            torch.set_rng_state(state["torch"])
++            torch.cuda.set_rng_state(state["cuda"])
++            np.random.set_state(state["numpy"])
++            random.setstate(state["python"])
++            start = checkpoint["completed_epochs"]
++        elif (output / "latest.pth").exists():
++            raise ValueError("Explicitly resume the existing run")
++        model = DistributedDataParallel(model, device_ids=[local], find_unused_parameters=True)
++        if rank == 0:
++            print(json.dumps({"phase": "train", "images": len(data), "steps_per_epoch": len(loader),
++                  "global_batch": 16, "world_size": 8, "epochs": 30}), flush=True)
++        for epoch in range(start, 30):
++            model.train()
++            sampler.set_epoch(epoch)
++            started = time.monotonic()
++            total = 0.
++            for step, (images, targets) in enumerate(loader):
++                images = [image.to(device) for image in images]
++                targets = [{k: v.to(device) if torch.is_tensor(v) else v for k, v in t.items()} for t in targets]
++                optimizer.zero_grad(set_to_none=True)
++                terms = model(images, targets)
++                loss = sum(terms.values())
++                if not torch.isfinite(loss):
++                    raise FloatingPointError(f"Nonfinite native loss: {epoch}, {step}")
++                loss.backward()
++                norm = torch.nn.utils.clip_grad_norm_(model.parameters(), .1)
++                if not torch.isfinite(norm):
++                    raise FloatingPointError("Nonfinite gradient norm")
++                optimizer.step()
++                total += float(loss.detach())
++                if rank == 0 and step % 25 == 0:
++                    print(f"epoch={epoch + 1}/30 step={step + 1}/{len(loader)} loss={float(loss):.6f}", flush=True)
++            scheduler.step()
++            mean = torch.tensor(total / len(loader), device=device)
++            dist.all_reduce(mean)
++            states = [None] * world
++            dist.all_gather_object(states, rng_state())
++            if rank == 0:
++                record = {"epoch": epoch + 1, "loss": float(mean) / world,
++                          "seconds": time.monotonic() - started, "test_evaluated": False}
++                with (output / "train.jsonl").open("a") as handle:
++                    handle.write(json.dumps(record) + "\n")
++                print(json.dumps(record), flush=True)
++                payload = {"model_state_dict": model.module.state_dict(), "completed_epochs": epoch + 1,
++                    "optimizer_state_dict": optimizer.state_dict(), "scheduler_state_dict": scheduler.state_dict(),
++                    "rng": states, "protocol_sha256": fingerprint}
++                torch.save(payload, output / "latest.partial")
++                (output / "latest.partial").replace(output / "latest.pth")
++                if (epoch + 1) % 10 == 0:
++                    os.link(output / "latest.pth", output / f"checkpoint_epoch_{epoch + 1:03d}.pth")
++            dist.barrier()
++    else:
++        if not checkpoint or checkpoint["completed_epochs"] != 30:
++            raise ValueError("Test requires the fixed final epoch-30 checkpoint")
++        model.eval()
++        dataset = RGBTest()
++        loader = DataLoader(Subset(dataset, range(rank, len(dataset), world)), batch_size=1,
++                            num_workers=2, collate_fn=custom_collate)
++        records, image_ids = [], []
++        with torch.no_grad():
++            for step, (images, targets) in enumerate(loader):
++                predictions = model([image.to(device) for image in images])
++                for prediction, target in zip(predictions, targets):
++                    records.extend(export(prediction, target, data.dataset.actions))
++                    image_ids.append(target["id"])
++                if rank == 0 and step % 100 == 0:
++                    print(f"test {step + 1}/{len(loader)}", flush=True)
++        eval_dir = output / "official_test"
++        eval_dir.mkdir(exist_ok=True)
++        with (eval_dir / f"rank{rank}.pkl").open("wb") as handle:
++            pickle.dump({"image_ids": image_ids, "records": records}, handle, protocol=4)
++        dist.barrier()
++        if rank == 0:
++            all_ids, all_records = [], []
++            for index in range(world):
++                with (eval_dir / f"rank{index}.pkl").open("rb") as handle:
++                    part = pickle.load(handle)
++                all_ids.extend(part["image_ids"])
++                all_records.extend(part["records"])
++            assert len(all_ids) == len(set(all_ids)) == 4946 and set(all_ids) == set(dataset.ids)
++            with (eval_dir / "predictions.partial").open("wb") as handle:
++                pickle.dump(all_records, handle, protocol=4)
++            (eval_dir / "predictions.partial").replace(eval_dir / "predictions.pkl")
++            atomic_json(eval_dir / "coverage.json", {"images": 4946, "image_ids": sorted(all_ids),
++                        "checkpoint_sha256": digest(args.resume), "native_role_classes": 24})
++        dist.barrier()
++    if distributed:
++        dist.destroy_process_group()
++
++
++if __name__ == "__main__":
++    main()

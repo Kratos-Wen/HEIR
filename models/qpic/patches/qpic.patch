@@ -1,0 +1,23 @@
+diff --git a/util/misc.py b/util/misc.py
+index e6e40d3..8a28b66 100644
+--- a/util/misc.py
++++ b/util/misc.py
+@@ -24,7 +24,8 @@ from torch import Tensor
+ 
+ # needed due to empty tensor bug in pytorch and torchvision 0.5
+ import torchvision
+-if float(torchvision.__version__[:3]) < 0.7:
++from packaging.version import parse as parse_version
++if parse_version(torchvision.__version__) < parse_version("0.7"):
+     from torchvision.ops import _new_empty_tensor
+     from torchvision.ops.misc import _output_size
+ 
+@@ -424,7 +425,7 @@ def interpolate(input, size=None, scale_factor=None, mode="nearest", align_corne
+     This will eventually be supported natively by PyTorch, and this
+     class can go away.
+     """
+-    if float(torchvision.__version__[:3]) < 0.7:
++    if parse_version(torchvision.__version__) < parse_version("0.7"):
+         if input.numel() > 0:
+             return torch.nn.functional.interpolate(
+                 input, size, scale_factor, mode, align_corners

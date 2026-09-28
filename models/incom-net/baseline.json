@@ -1,0 +1,161 @@
+{
+  "assets": {
+    "CLIP": {
+      "mounts": [
+        [
+          "workspace/assets/incom_net_reproduction/ViT-L-14-336px.pt",
+          ""
+        ]
+      ],
+      "sha256": {
+        "workspace/assets/incom_net_reproduction/ViT-L-14-336px.pt": "3035c92b350959924f9f00213499208652fc7ea050643e8b385c2dac08641f02"
+      }
+    },
+    "DETECTOR": {
+      "mounts": [
+        [
+          "pvic/checkpoints/detr-r50-vcoco.pth",
+          ""
+        ]
+      ],
+      "sha256": {
+        "pvic/checkpoints/detr-r50-vcoco.pth": "3665b62cc268f33d7b8ebd98c2f36662b3a148823a913abdc51227d8cc250350"
+      }
+    },
+    "VCOCO": {
+      "mounts": [
+        [
+          "data/v-coco",
+          ""
+        ],
+        [
+          "workspace/reference_repos/pvic/vcoco/mscoco2014",
+          "images"
+        ]
+      ],
+      "sha256": {}
+    }
+  },
+  "commands": {
+    "sources": {
+      "argv": [
+        "{python}",
+        "{root}/workspace/fetch_sources.py"
+      ],
+      "assets": [],
+      "cwd": "{root}/workspace",
+      "distributed": false,
+      "run_name": "sources",
+      "world_size": 1,
+      "pythonpath": [
+        "workspace"
+      ]
+    },
+    "prepare": {
+      "argv": [
+        "{python}",
+        "-m",
+        "reproductions.incom_vcoco_complete.run",
+        "--mode",
+        "prepare",
+        "--output",
+        "{output}",
+        "--acknowledge-independent-adaptation"
+      ],
+      "assets": [
+        "VCOCO",
+        "DETECTOR",
+        "CLIP"
+      ],
+      "cwd": "{root}/workspace",
+      "distributed": false,
+      "run_name": "incom",
+      "world_size": 1
+    },
+    "qualify": {
+      "argv": [
+        "{python}",
+        "-m",
+        "reproductions.incom_vcoco_complete.run",
+        "--mode",
+        "qualify",
+        "--output",
+        "{output}",
+        "--acknowledge-independent-adaptation"
+      ],
+      "assets": [
+        "VCOCO",
+        "DETECTOR",
+        "CLIP"
+      ],
+      "cwd": "{root}/workspace",
+      "distributed": true,
+      "run_name": "incom",
+      "world_size": 8
+    },
+    "test": {
+      "argv": [
+        "{python}",
+        "-m",
+        "reproductions.incom_vcoco_complete.run",
+        "--mode",
+        "test",
+        "--output",
+        "{output}",
+        "--acknowledge-independent-adaptation"
+      ],
+      "assets": [
+        "VCOCO",
+        "DETECTOR",
+        "CLIP"
+      ],
+      "cwd": "{root}/workspace",
+      "distributed": false,
+      "run_name": "incom",
+      "world_size": 1
+    },
+    "train": {
+      "argv": [
+        "{python}",
+        "-m",
+        "reproductions.incom_vcoco_complete.run",
+        "--mode",
+        "train",
+        "--output",
+        "{output}",
+        "--acknowledge-independent-adaptation"
+      ],
+      "assets": [
+        "VCOCO",
+        "DETECTOR",
+        "CLIP"
+      ],
+      "cwd": "{root}/workspace",
+      "distributed": true,
+      "run_name": "incom",
+      "world_size": 8
+    },
+    "validate": {
+      "argv": [
+        "{python}",
+        "-m",
+        "reproductions.incom_vcoco_complete.run",
+        "--mode",
+        "validate",
+        "--output",
+        "{output}",
+        "--acknowledge-independent-adaptation"
+      ],
+      "assets": [
+        "VCOCO",
+        "DETECTOR",
+        "CLIP"
+      ],
+      "cwd": "{root}/workspace",
+      "distributed": false,
+      "run_name": "incom",
+      "world_size": 1
+    }
+  },
+  "family": "incom-net"
+}

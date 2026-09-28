@@ -1,0 +1,119 @@
+diff --git a/main.py b/main.py
+index 9447848..17cb915 100644
+--- a/main.py
++++ b/main.py
+@@ -112,6 +112,8 @@ def get_args_parser():
+     parser.add_argument('--start_epoch', default=0, type=int, metavar='N',
+                         help='start epoch')
+     parser.add_argument('--eval', action='store_true')
++    parser.add_argument('--train_only', action='store_true',
++                        help='Do not construct or evaluate the test-backed val dataset.')
+     parser.add_argument('--num_workers', default=2, type=int)
+ 
+     # distributed training parameters
+@@ -134,6 +136,8 @@ def get_args_parser():
+ 
+ 
+ def main(args):
++    if args.train_only and args.eval:
++        raise ValueError('--train_only and --eval are mutually exclusive')
+     utils.init_distributed_mode(args)
+ 
+     print("git:\n  {}\n".format(utils.get_sha()))
+@@ -147,8 +151,11 @@ def main(args):
+ 
+     seed = args.seed + utils.get_rank()
+     torch.manual_seed(seed)
++    torch.cuda.manual_seed_all(seed)
+     np.random.seed(seed)
+     random.seed(seed)
++    torch.backends.cudnn.benchmark = False
++    torch.backends.cudnn.deterministic = True
+ 
+     model, criterion, postprocessors = build_model(args)
+     model.to(device)
+@@ -176,22 +183,24 @@ def main(args):
+     lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, args.lr_drop,gamma=args.gamma)
+ 
+     dataset_train = build_dataset(image_set='train', args=args)
+-    dataset_val = build_dataset(image_set='val', args=args)
++    dataset_val = None if args.train_only else build_dataset(image_set='val', args=args)
+ 
+     if args.distributed:
+         sampler_train = DistributedSampler(dataset_train)
+-        sampler_val = DistributedSampler(dataset_val, shuffle=False)
+     else:
+         sampler_train = torch.utils.data.RandomSampler(dataset_train)
+-        sampler_val = torch.utils.data.SequentialSampler(dataset_val)
+ 
+     batch_sampler_train = torch.utils.data.BatchSampler(
+         sampler_train, args.batch_size, drop_last=True)
+ 
+     data_loader_train = DataLoader(dataset_train, batch_sampler=batch_sampler_train,
+                                    collate_fn=utils.collate_fn, num_workers=args.num_workers)
+-    data_loader_val = DataLoader(dataset_val, args.batch_size, sampler=sampler_val,
+-                                 drop_last=False, collate_fn=utils.collate_fn, num_workers=args.num_workers)
++    data_loader_val = None
++    if dataset_val is not None:
++        sampler_val = (DistributedSampler(dataset_val, shuffle=False) if args.distributed
++                       else torch.utils.data.SequentialSampler(dataset_val))
++        data_loader_val = DataLoader(dataset_val, args.batch_size, sampler=sampler_val,
++                                    drop_last=False, collate_fn=utils.collate_fn, num_workers=args.num_workers)
+ 
+     if args.frozen_weights is not None:
+         checkpoint = torch.load(args.frozen_weights, map_location='cpu')
+@@ -209,6 +218,14 @@ def main(args):
+             optimizer.load_state_dict(checkpoint['optimizer'])
+             lr_scheduler.load_state_dict(checkpoint['lr_scheduler'])
+             args.start_epoch = checkpoint['epoch'] + 1
++            if 'rng_states' in checkpoint:
++                if len(checkpoint['rng_states']) != utils.get_world_size():
++                    raise ValueError('Resume requires the same world size')
++                rng = checkpoint['rng_states'][utils.get_rank()]
++                random.setstate(rng['python'])
++                np.random.set_state(rng['numpy'])
++                torch.set_rng_state(rng['torch'])
++                torch.cuda.set_rng_state(rng['cuda'], device)
+ 
+         if args.fine:
+             for p in optimizer.param_groups:
+@@ -218,7 +235,10 @@ def main(args):
+         if args.eval:
+             model_without_ddp.load_state_dict(checkpoint['model'])
+         else:
+-            model_without_ddp.load_state_dict(checkpoint['model'], strict=False)
++            print('Pretrained load:', model_without_ddp.load_state_dict(checkpoint['model'], strict=False))
++
++    if utils.is_main_process():
++        (output_dir / 'resolved_args.json').write_text(json.dumps(vars(args), indent=2) + '\n')
+ 
+     if args.eval:
+         test_stats = evaluate_hoi(args.dataset_file, model, postprocessors, data_loader_val, args.subject_category_id, device, args)
+@@ -244,6 +264,27 @@ def main(args):
+             args.clip_max_norm)
+         lr_scheduler.step()
+ 
++        if args.train_only:
++            rng = {'python': random.getstate(), 'numpy': np.random.get_state(),
++                   'torch': torch.get_rng_state(), 'cuda': torch.cuda.get_rng_state(device)}
++            rng_states = [None] * utils.get_world_size()
++            if args.distributed:
++                torch.distributed.all_gather_object(rng_states, rng)
++            else:
++                rng_states[0] = rng
++            if utils.is_main_process():
++                state = {'model': model_without_ddp.state_dict(), 'optimizer': optimizer.state_dict(),
++                         'lr_scheduler': lr_scheduler.state_dict(), 'epoch': epoch,
++                         'args': args, 'rng_states': rng_states,
++                         'checkpoint_selection': 'predeclared_final_epoch_no_test_selection'}
++                temporary = output_dir / 'checkpoint_last.pth.tmp'
++                torch.save(state, temporary)
++                os.replace(temporary, output_dir / 'checkpoint_last.pth')
++                with (output_dir / 'log.txt').open('a') as handle:
++                    handle.write(json.dumps({**{'train_' + k: v for k, v in train_stats.items()},
++                                             'epoch': epoch, 'n_parameters': n_parameters}) + '\n')
++            continue
++
+         if epoch == args.epochs - 1:
+             checkpoint_path = os.path.join(output_dir, 'checkpoint_last.pth')
+             utils.save_on_master({

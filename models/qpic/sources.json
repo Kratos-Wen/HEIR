@@ -1,0 +1,39 @@
+{
+  "qpic": {
+    "url": "https://github.com/hitachi-rd-cv/qpic",
+    "commit": "257f3147a47e92fcfd98a675b39423eb4f9a5a55",
+    "patch": "patches/qpic.patch",
+    "verified_sha256": {
+      "LICENSE": "d91596b04bccba9bfa5853504737e6e7cf897abfc8c3fc3837d4cfae9eee448b",
+      "README.md": "d57d709e1430c52fca7efc55c6481664b756f5dac4a6f8d6e8c3116904523087",
+      "convert_parameters.py": "5def82c8955cc9013bb86c31f50c7422f98463932df04d983bce322d46977863",
+      "convert_vcoco_annotations.py": "25bc05e3ac50671d5d2775cbe7eaf1708f08058c37acc95d2fb0a8ddf0d43027",
+      "datasets/__init__.py": "7c2c5c834f2d2e3e7982f4bf773383206122185e8de53ff33a5ba36d2de3aca3",
+      "datasets/coco.py": "4a5a7405134e4a2791a5f244390db5f049a2a204ed8120d2046bc5610ffe7b9b",
+      "datasets/coco_eval.py": "08c2cd9c0d14c04a8a26ec470d0e3b51847509ccecb30d534e8983ad7272eee6",
+      "datasets/coco_panoptic.py": "3d919ff99e42c1211c3ea9ce5c62ded113e2fcb9d84333ac90835d80b91c7d7e",
+      "datasets/hico.py": "52181c9287243d8e728db248f3b502b800a2a8e588b3039bc6adf30165c43c0a",
+      "datasets/hico_eval.py": "05f584f270b0c2e98afadc351cb98401ba10b802e0e1af42ce4bc6c2c6a51027",
+      "datasets/panoptic_eval.py": "01d3c77d3714307ffa5355f99129c62e6f2041437e9dba301692b888e4250b2a",
+      "datasets/transforms.py": "38814a65813507db443eda673ac72766397d28068d61dbf9eb6a613ccefed1ef",
+      "datasets/vcoco.py": "a8ed36a94db1d57d13bc1aa9e579c88e654660dfe9fd7786ead1e9366804600e",
+      "datasets/vcoco_eval.py": "c95bfd098cc46e9573ce899a8f956a0bfc11907b65b1ffd3ac754fa28db32491",
+      "engine.py": "6a0ad26a6e63a2c79f220e767ca6421a8b3454d6aff929d4f48d01fc42545e96",
+      "generate_vcoco_official.py": "ae22ad789cd14c4b4cddefab8d9a3d5e0bf886a228da30385a84381b3f42d17f",
+      "main.py": "cff70c8dd80a6892153f0547514ed89960f62917b1cdcf94ed2fc03c2256d253",
+      "models/__init__.py": "eef018f7cd015388183f15524d96be5dbb677cfb04dc13b1416d89e67ee8194c",
+      "models/backbone.py": "7e1461280170b34923c3dc8de8b07a4ceaa8118f2811a0b518d4d35151e2ff24",
+      "models/detr.py": "d33a746a2c4437bbf19897b30174d8d58dbad6be7a5e39c59b9348e44fb822b0",
+      "models/hoi.py": "10105b6d2b53b065906339d62b5e7d696810d6026ef074718603d26a2c8d2721",
+      "models/matcher.py": "3e5fce136e33d3c2172af70ecb7182a537b3d7b813b856c8d4f769b7247ca773",
+      "models/position_encoding.py": "65271683967ba3df8cabf6f81f25c360cd48b7f49a9e41706f9d2f198060e93d",
+      "models/segmentation.py": "5807afcc90676ed26002556d0348060d8c75a685137c5d2f0867d34eb829d4de",
+      "models/transformer.py": "8181fcc9e13efd1dc5d6fcf64d6fafea93c79b1ec23bbf9f17bf4fbdef1c6a55",
+      "requirements.txt": "72160b54af934c4d618c7f61beb47196d74f0e0b5b8e111dfff86be56f3419f0",
+      "util/__init__.py": "23939c05151d07cc61878b7f3b0936987ee09e637caa4192c2e312992de3eb1c",
+      "util/box_ops.py": "7002eff67758450b7ccf80718fdecf80d09a08efdd3b11ac70f7e57649514a03",
+      "util/misc.py": "15211a09a485ec6a3767c5dc603f2434aad5ddb847f18924a2e752efe784b710",
+      "util/plot_utils.py": "9204a93c7dee596c38a9675e9cbc80f919f95637760d14126f780e8169915655"
+    }
+  }
+}

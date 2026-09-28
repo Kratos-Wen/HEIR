@@ -1,0 +1,1006 @@
+diff --git a/datasets/vcoco.py b/datasets/vcoco.py
+new file mode 100644
+index 0000000..bdf72c6
+--- /dev/null
++++ b/datasets/vcoco.py
+@@ -0,0 +1,175 @@
++from pathlib import Path
++from PIL import Image
++import json
++import numpy as np
++
++import torch
++import torch.utils.data
++from datasets.hico import make_hico_transforms
++from .vcoco_text_label import *
++
++
++class VCOCO(torch.utils.data.Dataset):
++
++    def __init__(self, img_set, img_folder, anno_file, transforms, num_queries, args):
++        self.img_set = img_set
++        self.img_folder = img_folder
++        with open(anno_file, 'r') as f:
++            self.annotations = json.load(f)
++        self._transforms = transforms
++
++        self.num_queries = num_queries
++
++        self._valid_obj_ids = (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 13,
++                               14, 15, 16, 17, 18, 19, 20, 21, 22, 23,
++                               24, 25, 27, 28, 31, 32, 33, 34, 35, 36,
++                               37, 38, 39, 40, 41, 42, 43, 44, 46, 47,
++                               48, 49, 50, 51, 52, 53, 54, 55, 56, 57,
++                               58, 59, 60, 61, 62, 63, 64, 65, 67, 70,
++                               72, 73, 74, 75, 76, 77, 78, 79, 80, 81,
++                               82, 84, 85, 86, 87, 88, 89, 90)
++        self._valid_verb_ids = range(29)
++
++        self.text_label_ids = list(vcoco_hoi_text_label.keys())
++
++    def __len__(self):
++        return len(self.annotations)
++
++    def __getitem__(self, idx):
++        img_anno = self.annotations[idx]
++
++        img = Image.open(self.img_folder / img_anno['file_name']).convert('RGB')
++        w, h = img.size
++
++        boxes = [obj['bbox'] for obj in img_anno['annotations']]
++        # guard against no boxes via resizing
++        boxes = torch.as_tensor(boxes, dtype=torch.float32).reshape(-1, 4)
++
++        if self.img_set == 'train':
++            # Add index for confirming which boxes are kept after image transformation
++            classes = [(i, self._valid_obj_ids.index(obj['category_id'])) for i, obj in enumerate(img_anno['annotations'])]
++        else:
++            classes = [self._valid_obj_ids.index(obj['category_id']) for obj in img_anno['annotations']]
++        classes = torch.tensor(classes, dtype=torch.int64)
++
++        target = {}
++        target['orig_size'] = torch.as_tensor([int(h), int(w)])
++        target['size'] = torch.as_tensor([int(h), int(w)])
++        if self.img_set == 'train':
++            boxes[:, 0::2].clamp_(min=0, max=w)
++            boxes[:, 1::2].clamp_(min=0, max=h)
++            keep = (boxes[:, 3] > boxes[:, 1]) & (boxes[:, 2] > boxes[:, 0])
++            boxes = boxes[keep]
++            classes = classes[keep]
++
++            target['boxes'] = boxes
++            target['labels'] = classes
++            target['iscrowd'] = torch.tensor([0 for _ in range(boxes.shape[0])])
++            target['area'] = (boxes[:, 2] - boxes[:, 0]) * (boxes[:, 3] - boxes[:, 1])
++
++            if self._transforms is not None:
++                img, target = self._transforms(img, target)
++            kept_box_indices = [label[0] for label in target['labels']]
++
++            target['labels'] = target['labels'][:, 1]
++
++            obj_labels, verb_labels, sub_boxes, obj_boxes = [], [], [], []
++            sub_obj_pairs = []
++            hoi_labels = []
++            for hoi in img_anno['hoi_annotation']:
++                if hoi['subject_id'] not in kept_box_indices or \
++                   (hoi['object_id'] != -1 and hoi['object_id'] not in kept_box_indices):
++                    continue
++
++                #if hoi['subject_id'] not in kept_box_indices or hoi['object_id'] not in kept_box_indices:
++                #    continue
++
++                if hoi['object_id'] == -1:
++                    verb_obj_pair = (self._valid_verb_ids.index(hoi['category_id']), 80)
++                else:
++                    verb_obj_pair = (self._valid_verb_ids.index(hoi['category_id']),
++                                     int(target['labels'][kept_box_indices.index(hoi['object_id'])]))
++
++                if verb_obj_pair not in self.text_label_ids:
++                    raise ValueError(f"Unmapped V-COCO label: {verb_obj_pair}")
++
++                sub_obj_pair = (hoi['subject_id'], hoi['object_id'])
++                if sub_obj_pair in sub_obj_pairs:
++                    verb_labels[sub_obj_pairs.index(sub_obj_pair)][self._valid_verb_ids.index(hoi['category_id'])] = 1
++                    hoi_labels[sub_obj_pairs.index(sub_obj_pair)][self.text_label_ids.index(verb_obj_pair)] = 1
++                else:
++                    sub_obj_pairs.append(sub_obj_pair)
++                    if hoi['object_id'] == -1:
++                        obj_labels.append(torch.tensor(len(self._valid_obj_ids)))
++                    else:
++                        obj_labels.append(target['labels'][kept_box_indices.index(hoi['object_id'])])
++                    verb_label = [0 for _ in range(len(self._valid_verb_ids))]
++                    verb_label[self._valid_verb_ids.index(hoi['category_id'])] = 1
++                    hoi_label = [0] * len(self.text_label_ids)
++                    hoi_label[self.text_label_ids.index(verb_obj_pair)] = 1
++                    sub_box = target['boxes'][kept_box_indices.index(hoi['subject_id'])]
++                    if hoi['object_id'] == -1:
++                        obj_box = torch.zeros((4,), dtype=torch.float32)
++                    else:
++                        obj_box = target['boxes'][kept_box_indices.index(hoi['object_id'])]
++                    verb_labels.append(verb_label)
++                    hoi_labels.append(hoi_label)
++                    sub_boxes.append(sub_box)
++                    obj_boxes.append(obj_box)
++
++            target['filename'] = img_anno['file_name']
++            if len(sub_obj_pairs) == 0:
++                target['obj_labels'] = torch.zeros((0,), dtype=torch.int64)
++                target['verb_labels'] = torch.zeros((0, len(self._valid_verb_ids)), dtype=torch.float32)
++                #target['hoi_labels'] = torch.zeros((0, len(self._valid_verb_ids)), dtype=torch.float32)
++                target['hoi_labels'] = torch.zeros((0, len(self.text_label_ids)), dtype=torch.float32)
++                target['sub_boxes'] = torch.zeros((0, 4), dtype=torch.float32)
++                target['obj_boxes'] = torch.zeros((0, 4), dtype=torch.float32)
++            else:
++                target['obj_labels'] = torch.stack(obj_labels)
++                target['verb_labels'] = torch.as_tensor(verb_labels, dtype=torch.float32)
++                #target['hoi_labels'] = torch.as_tensor(verb_labels, dtype=torch.float32)
++                target['hoi_labels'] = torch.as_tensor(hoi_labels, dtype=torch.float32)
++                target['sub_boxes'] = torch.stack(sub_boxes)
++                target['obj_boxes'] = torch.stack(obj_boxes)
++        else:
++            target['filename'] = img_anno['file_name']
++            target['boxes'] = boxes
++            target['labels'] = classes
++            target['id'] = idx
++            target['img_id'] = int(img_anno['file_name'].rstrip('.jpg').split('_')[2])
++
++            if self._transforms is not None:
++                img, _ = self._transforms(img, None)
++
++            hois = []
++            for hoi in img_anno['hoi_annotation']:
++                hois.append((hoi['subject_id'], hoi['object_id'], self._valid_verb_ids.index(hoi['category_id'])))
++            target['hois'] = torch.as_tensor(hois, dtype=torch.int64)
++
++        return img, target
++
++    def load_correct_mat(self, path):
++        self.correct_mat = np.load(path)
++
++
++# Add color jitter to coco transforms
++def make_vcoco_transforms(image_set):
++    return make_hico_transforms(image_set)
++
++
++def build(image_set, args):
++    root = Path(args.hoi_path)
++    assert root.exists(), f'provided HOI path {root} does not exist'
++    PATHS = {
++        'train': (root / 'images' / 'train2014', root / 'annotations' / 'trainval_vcoco.json'),
++        'val': (root / 'images' / 'val2014', root / 'annotations' / 'test_vcoco.json')
++    }
++    CORRECT_MAT_PATH = root / 'annotations' / 'corre_vcoco.npy'
++
++    img_folder, anno_file = PATHS[image_set]
++    dataset = VCOCO(image_set, img_folder, anno_file, transforms=make_vcoco_transforms(image_set),
++                    num_queries=args.num_queries, args=args)
++    if image_set == 'val':
++        dataset.load_correct_mat(CORRECT_MAT_PATH)
++    return dataset
+diff --git a/datasets/vcoco_text_label.py b/datasets/vcoco_text_label.py
+new file mode 100644
+index 0000000..91eb09e
+--- /dev/null
++++ b/datasets/vcoco_text_label.py
+@@ -0,0 +1,282 @@
++vcoco_obj_text_label = [(0, 'a photo of a person and a person'), (1, 'a photo of a person and a bicycle'),
++                        (2, 'a photo of a person and a car'), (3, 'a photo of a person and a motorcycle'),
++                        (4, 'a photo of a person and an airplane'), (5, 'a photo of a person and a bus'),
++                        (6, 'a photo of a person and a train'), (7, 'a photo of a person and a truck'),
++                        (8, 'a photo of a person and a boat'), (9, 'a photo of a person and a traffic light'),
++                        (10, 'a photo of a person and a fire hydrant'), (11, 'a photo of a person and a stop sign'),
++                        (12, 'a photo of a person and a parking meter'), (13, 'a photo of a person and a bench'),
++                        (14, 'a photo of a person and a bird'), (15, 'a photo of a person and a cat'),
++                        (16, 'a photo of a person and a dog'), (17, 'a photo of a person and a horse'),
++                        (18, 'a photo of a person and a sheep'), (19, 'a photo of a person and a cow'),
++                        (20, 'a photo of a person and an elephant'), (21, 'a photo of a person and a bear'),
++                        (22, 'a photo of a person and a zebra'), (23, 'a photo of a person and a giraffe'),
++                        (24, 'a photo of a person and a backpack'), (25, 'a photo of a person and a umbrella'),
++                        (26, 'a photo of a person and a handbag'), (27, 'a photo of a person and a tie'),
++                        (28, 'a photo of a person and a suitcase'), (29, 'a photo of a person and a frisbee'),
++                        (30, 'a photo of a person and a skis'), (31, 'a photo of a person and a snowboard'),
++                        (32, 'a photo of a person and a sports ball'), (33, 'a photo of a person and a kite'),
++                        (34, 'a photo of a person and a baseball bat'),
++                        (35, 'a photo of a person and a baseball glove'),
++                        (36, 'a photo of a person and a skateboard'), (37, 'a photo of a person and a surfboard'),
++                        (38, 'a photo of a person and a tennis racket'), (39, 'a photo of a person and a bottle'),
++                        (40, 'a photo of a person and a wine glass'), (41, 'a photo of a person and a cup'),
++                        (42, 'a photo of a person and a fork'), (43, 'a photo of a person and a knife'),
++                        (44, 'a photo of a person and a spoon'), (45, 'a photo of a person and a bowl'),
++                        (46, 'a photo of a person and a banana'), (47, 'a photo of a person and an apple'),
++                        (48, 'a photo of a person and a sandwich'), (49, 'a photo of a person and an orange'),
++                        (50, 'a photo of a person and a broccoli'), (51, 'a photo of a person and a carrot'),
++                        (52, 'a photo of a person and a hot dog'), (53, 'a photo of a person and a pizza'),
++                        (54, 'a photo of a person and a donut'), (55, 'a photo of a person and a cake'),
++                        (56, 'a photo of a person and a chair'), (57, 'a photo of a person and a couch'),
++                        (58, 'a photo of a person and a potted plant'), (59, 'a photo of a person and a bed'),
++                        (60, 'a photo of a person and a dining table'), (61, 'a photo of a person and a toilet'),
++                        (62, 'a photo of a person and a tv'), (63, 'a photo of a person and a laptop'),
++                        (64, 'a photo of a person and a mouse'), (65, 'a photo of a person and a remote'),
++                        (66, 'a photo of a person and a keyboard'), (67, 'a photo of a person and a cell phone'),
++                        (68, 'a photo of a person and a microwave'), (69, 'a photo of a person and an oven'),
++                        (70, 'a photo of a person and a toaster'), (71, 'a photo of a person and a sink'),
++                        (72, 'a photo of a person and a refrigerator'), (73, 'a photo of a person and a book'),
++                        (74, 'a photo of a person and a clock'), (75, 'a photo of a person and a vase'),
++                        (76, 'a photo of a person and a scissors'), (77, 'a photo of a person and a teddy bear'),
++                        (78, 'a photo of a person and a hair drier'), (79, 'a photo of a person and a toothbrush'),
++                        (80, 'a photo of a person only'), (81, 'a photo of nothing')]
++
++vcoco_hoi_text_label = {(0, 41): 'a photo of a person holding a cup',
++                        (16, 80): 'a photo of a person cutting with something',
++                        (17, 53): 'a photo of a person cutting a pizza',
++                        (0, 53): 'a photo of a person holding a pizza', (2, 80): 'a photo of a person sitting',
++                        (8, 53): 'a photo of a person eating a pizza',
++                        (9, 80): 'a photo of a person eating with something',
++                        (23, 80): 'a photo of a person smiling', (21, 37): 'a photo of a person surfing a surfboard',
++                        (0, 73): 'a photo of a person holding a book',
++                        (2, 13): 'a photo of a person sitting a bench',
++                        (5, 73): 'a photo of a person looking at a book',
++                        (27, 73): 'a photo of a person reading a book', (1, 80): 'a photo of a person standing',
++                        (22, 36): 'a photo of a person skateboarding a skateboard',
++                        (20, 30): 'a photo of a person skiing a skis', (0, 80): 'a photo of a person holding',
++                        (8, 80): 'a photo of a person eating', (2, 56): 'a photo of a person sitting a chair',
++                        (5, 63): 'a photo of a person looking at a laptop',
++                        (19, 63): 'a photo of a person working on computer a laptop',
++                        (0, 40): 'a photo of a person holding a wine glass',
++                        (24, 40): 'a photo of a person drinking a wine glass',
++                        (5, 31): 'a photo of a person looking at a snowboard',
++                        (28, 31): 'a photo of a person snowboarding a snowboard',
++                        (0, 76): 'a photo of a person holding a scissors',
++                        (5, 80): 'a photo of a person looking at something',
++                        (5, 76): 'a photo of a person looking at a scissors',
++                        (16, 76): 'a photo of a person cutting with a scissors',
++                        (17, 80): 'a photo of a person cutting',
++                        (5, 37): 'a photo of a person looking at a surfboard',
++                        (2, 17): 'a photo of a person sitting a horse',
++                        (3, 17): 'a photo of a person riding a horse', (4, 80): 'a photo of a person walking',
++                        (5, 29): 'a photo of a person looking at a frisbee', (10, 80): 'a photo of a person jumping',
++                        (14, 29): 'a photo of a person throwing a frisbee', (18, 80): 'a photo of a person running',
++                        (5, 53): 'a photo of a person looking at a pizza',
++                        (0, 48): 'a photo of a person holding a sandwich',
++                        (8, 48): 'a photo of a person eating a sandwich',
++                        (0, 67): 'a photo of a person holding a cell phone',
++                        (19, 80): 'a photo of a person working on computer',
++                        (0, 24): 'a photo of a person holding a backpack',
++                        (13, 24): 'a photo of a person carrying a backpack', (11, 80): 'a photo of a person laying',
++                        (11, 57): 'a photo of a person laying a couch',
++                        (0, 17): 'a photo of a person holding a horse', (0, 15): 'a photo of a person holding a cat',
++                        (11, 59): 'a photo of a person laying a bed',
++                        (15, 29): 'a photo of a person catching a frisbee', (3, 80): 'a photo of a person riding',
++                        (12, 67): 'a photo of a person talking on phone a cell phone',
++                        (0, 31): 'a photo of a person holding a snowboard',
++                        (10, 31): 'a photo of a person jumping a snowboard',
++                        (5, 36): 'a photo of a person looking at a skateboard',
++                        (10, 36): 'a photo of a person jumping a skateboard',
++                        (0, 79): 'a photo of a person holding a toothbrush', (27, 80): 'a photo of a person reading',
++                        (0, 39): 'a photo of a person holding a bottle',
++                        (24, 39): 'a photo of a person drinking a bottle',
++                        (2, 59): 'a photo of a person sitting a bed',
++                        (5, 48): 'a photo of a person looking at a sandwich',
++                        (0, 30): 'a photo of a person holding a skis',
++                        (0, 38): 'a photo of a person holding a tennis racket',
++                        (5, 32): 'a photo of a person looking at a sports ball',
++                        (6, 38): 'a photo of a person hitting with a tennis racket',
++                        (7, 32): 'a photo of a person hitting a sports ball',
++                        (5, 0): 'a photo of a person looking at a person',
++                        (5, 17): 'a photo of a person looking at a horse',
++                        (0, 47): 'a photo of a person holding an apple',
++                        (5, 18): 'a photo of a person looking at a sheep',
++                        (8, 47): 'a photo of a person eating an apple',
++                        (25, 32): 'a photo of a person kicking a sports ball',
++                        (0, 44): 'a photo of a person holding a spoon',
++                        (5, 55): 'a photo of a person looking at a cake',
++                        (8, 55): 'a photo of a person eating a cake',
++                        (9, 44): 'a photo of a person eating with a spoon',
++                        (0, 63): 'a photo of a person holding a laptop',
++                        (6, 80): 'a photo of a person hitting with something',
++                        (2, 3): 'a photo of a person sitting a motorcycle',
++                        (3, 3): 'a photo of a person riding a motorcycle',
++                        (0, 43): 'a photo of a person holding a knife',
++                        (5, 43): 'a photo of a person looking at a knife',
++                        (16, 43): 'a photo of a person cutting with a knife',
++                        (17, 55): 'a photo of a person cutting a cake', (7, 80): 'a photo of a person hitting',
++                        (0, 34): 'a photo of a person holding a baseball bat',
++                        (6, 34): 'a photo of a person hitting with a baseball bat',
++                        (15, 80): 'a photo of a person catching', (2, 57): 'a photo of a person sitting a couch',
++                        (0, 77): 'a photo of a person holding a teddy bear',
++                        (13, 49): 'a photo of a person carrying an orange',
++                        (0, 42): 'a photo of a person holding a fork',
++                        (9, 42): 'a photo of a person eating with a fork',
++                        (5, 62): 'a photo of a person looking at a tv',
++                        (0, 28): 'a photo of a person holding a suitcase',
++                        (13, 28): 'a photo of a person carrying a suitcase',
++                        (2, 20): 'a photo of a person sitting an elephant',
++                        (3, 20): 'a photo of a person riding an elephant',
++                        (5, 15): 'a photo of a person looking at a cat',
++                        (0, 56): 'a photo of a person holding a chair',
++                        (5, 60): 'a photo of a person looking at a dining table',
++                        (24, 41): 'a photo of a person drinking a cup', (14, 80): 'a photo of a person throwing',
++                        (13, 26): 'a photo of a person carrying a handbag',
++                        (5, 16): 'a photo of a person looking at a dog',
++                        (0, 46): 'a photo of a person holding a banana',
++                        (13, 46): 'a photo of a person carrying a banana',
++                        (5, 28): 'a photo of a person looking at a suitcase',
++                        (9, 43): 'a photo of a person eating with a knife',
++                        (0, 37): 'a photo of a person holding a surfboard',
++                        (13, 37): 'a photo of a person carrying a surfboard',
++                        (8, 54): 'a photo of a person eating a donut',
++                        (0, 0): 'a photo of a person holding a person',
++                        (0, 35): 'a photo of a person holding a baseball glove',
++                        (0, 65): 'a photo of a person holding a remote',
++                        (0, 54): 'a photo of a person holding a donut',
++                        (0, 26): 'a photo of a person holding a handbag', (13, 80): 'a photo of a person carrying',
++                        (13, 0): 'a photo of a person carrying a person',
++                        (0, 32): 'a photo of a person holding a sports ball',
++                        (14, 32): 'a photo of a person throwing a sports ball',
++                        (5, 54): 'a photo of a person looking at a donut',
++                        (0, 1): 'a photo of a person holding a bicycle',
++                        (2, 1): 'a photo of a person sitting a bicycle',
++                        (3, 1): 'a photo of a person riding a bicycle',
++                        (5, 1): 'a photo of a person looking at a bicycle', (25, 80): 'a photo of a person kicking',
++                        (5, 67): 'a photo of a person looking at a cell phone',
++                        (5, 6): 'a photo of a person looking at a train',
++                        (0, 29): 'a photo of a person holding a frisbee',
++                        (0, 36): 'a photo of a person holding a skateboard',
++                        (3, 7): 'a photo of a person riding a truck',
++                        (26, 63): 'a photo of a person pointing a laptop',
++                        (0, 3): 'a photo of a person holding a motorcycle',
++                        (13, 30): 'a photo of a person carrying a skis',
++                        (0, 25): 'a photo of a person holding a umbrella',
++                        (5, 45): 'a photo of a person looking at a bowl',
++                        (17, 51): 'a photo of a person cutting a carrot',
++                        (0, 52): 'a photo of a person holding a hot dog',
++                        (8, 52): 'a photo of a person eating a hot dog',
++                        (0, 33): 'a photo of a person holding a kite',
++                        (5, 13): 'a photo of a person looking at a bench',
++                        (12, 80): 'a photo of a person talking on phone',
++                        (22, 80): 'a photo of a person skateboarding',
++                        (5, 35): 'a photo of a person looking at a baseball glove',
++                        (15, 32): 'a photo of a person catching a sports ball',
++                        (26, 80): 'a photo of a person pointing',
++                        (13, 25): 'a photo of a person carrying a umbrella',
++                        (5, 40): 'a photo of a person looking at a wine glass',
++                        (10, 37): 'a photo of a person jumping a surfboard',
++                        (5, 33): 'a photo of a person looking at a kite',
++                        (13, 33): 'a photo of a person carrying a kite',
++                        (3, 6): 'a photo of a person riding a train',
++                        (5, 44): 'a photo of a person looking at a spoon',
++                        (0, 20): 'a photo of a person holding an elephant', (21, 80): 'a photo of a person surfing',
++                        (5, 20): 'a photo of a person looking at an elephant',
++                        (3, 8): 'a photo of a person riding a boat',
++                        (5, 23): 'a photo of a person looking at a giraffe',
++                        (13, 67): 'a photo of a person carrying a cell phone',
++                        (11, 56): 'a photo of a person laying a chair',
++                        (5, 19): 'a photo of a person looking at a cow',
++                        (5, 42): 'a photo of a person looking at a fork',
++                        (0, 55): 'a photo of a person holding a cake',
++                        (13, 32): 'a photo of a person carrying a sports ball',
++                        (5, 30): 'a photo of a person looking at a skis',
++                        (13, 36): 'a photo of a person carrying a skateboard',
++                        (26, 67): 'a photo of a person pointing a cell phone',
++                        (5, 52): 'a photo of a person looking at a hot dog',
++                        (8, 46): 'a photo of a person eating a banana', (20, 80): 'a photo of a person skiing',
++                        (28, 80): 'a photo of a person snowboarding', (0, 14): 'a photo of a person holding a bird',
++                        (11, 60): 'a photo of a person laying a dining table',
++                        (0, 16): 'a photo of a person holding a dog',
++                        (0, 72): 'a photo of a person holding a refrigerator',
++                        (5, 72): 'a photo of a person looking at a refrigerator',
++                        (5, 7): 'a photo of a person looking at a truck',
++                        (5, 41): 'a photo of a person looking at a cup',
++                        (2, 61): 'a photo of a person sitting a toilet', (24, 80): 'a photo of a person drinking',
++                        (0, 27): 'a photo of a person holding a tie',
++                        (5, 27): 'a photo of a person looking at a tie',
++                        (17, 27): 'a photo of a person cutting a tie',
++                        (5, 10): 'a photo of a person looking at a fire hydrant',
++                        (26, 10): 'a photo of a person pointing a fire hydrant',
++                        (11, 13): 'a photo of a person laying a bench',
++                        (17, 18): 'a photo of a person cutting a sheep',
++                        (0, 64): 'a photo of a person holding a mouse',
++                        (5, 64): 'a photo of a person looking at a mouse',
++                        (5, 66): 'a photo of a person looking at a keyboard',
++                        (16, 42): 'a photo of a person cutting with a fork',
++                        (17, 0): 'a photo of a person cutting a person',
++                        (5, 5): 'a photo of a person looking at a bus', (3, 2): 'a photo of a person riding a car',
++                        (10, 30): 'a photo of a person jumping a skis',
++                        (5, 4): 'a photo of a person looking at an airplane',
++                        (5, 46): 'a photo of a person looking at a banana',
++                        (2, 28): 'a photo of a person sitting a suitcase',
++                        (13, 29): 'a photo of a person carrying a frisbee',
++                        (5, 26): 'a photo of a person looking at a handbag',
++                        (8, 50): 'a photo of a person eating a broccoli',
++                        (17, 46): 'a photo of a person cutting a banana',
++                        (0, 18): 'a photo of a person holding a sheep',
++                        (17, 48): 'a photo of a person cutting a sandwich',
++                        (26, 0): 'a photo of a person pointing a person',
++                        (5, 3): 'a photo of a person looking at a motorcycle',
++                        (5, 24): 'a photo of a person looking at a backpack',
++                        (0, 45): 'a photo of a person holding a bowl',
++                        (26, 27): 'a photo of a person pointing a tie',
++                        (0, 49): 'a photo of a person holding an orange',
++                        (8, 49): 'a photo of a person eating an orange',
++                        (5, 34): 'a photo of a person looking at a baseball bat',
++                        (13, 31): 'a photo of a person carrying a snowboard',
++                        (17, 54): 'a photo of a person cutting a donut',
++                        (5, 38): 'a photo of a person looking at a tennis racket',
++                        (8, 51): 'a photo of a person eating a carrot',
++                        (17, 47): 'a photo of a person cutting an apple',
++                        (13, 40): 'a photo of a person carrying a wine glass',
++                        (26, 48): 'a photo of a person pointing a sandwich',
++                        (26, 62): 'a photo of a person pointing a tv',
++                        (13, 74): 'a photo of a person carrying a clock',
++                        (5, 61): 'a photo of a person looking at a toilet',
++                        (26, 19): 'a photo of a person pointing a cow',
++                        (5, 65): 'a photo of a person looking at a remote',
++                        (26, 18): 'a photo of a person pointing a sheep',
++                        (0, 50): 'a photo of a person holding a broccoli',
++                        (0, 13): 'a photo of a person holding a bench',
++                        (26, 33): 'a photo of a person pointing a kite',
++                        (0, 7): 'a photo of a person holding a truck',
++                        (13, 41): 'a photo of a person carrying a cup',
++                        (24, 45): 'a photo of a person drinking a bowl',
++                        (13, 38): 'a photo of a person carrying a tennis racket',
++                        (13, 39): 'a photo of a person carrying a bottle',
++                        (5, 47): 'a photo of a person looking at an apple',
++                        (5, 56): 'a photo of a person looking at a chair',
++                        (2, 24): 'a photo of a person sitting a backpack',
++                        (26, 60): 'a photo of a person pointing a dining table',
++                        (0, 78): 'a photo of a person holding a hair drier',
++                        (5, 39): 'a photo of a person looking at a bottle',
++                        (26, 55): 'a photo of a person pointing a cake',
++                        (26, 66): 'a photo of a person pointing a keyboard',
++                        (26, 72): 'a photo of a person pointing a refrigerator',
++                        (5, 74): 'a photo of a person looking at a clock',
++                        (0, 8): 'a photo of a person holding a boat', (17, 45): 'a photo of a person cutting a bowl',
++                        (26, 23): 'a photo of a person pointing a giraffe',
++                        (5, 25): 'a photo of a person looking at a umbrella',
++                        (0, 66): 'a photo of a person holding a keyboard',
++                        (2, 26): 'a photo of a person sitting a handbag',
++                        (26, 52): 'a photo of a person pointing a hot dog',
++                        (2, 60): 'a photo of a person sitting a dining table',
++                        (13, 77): 'a photo of a person carrying a teddy bear',
++                        (0, 51): 'a photo of a person holding a carrot',
++                        (13, 34): 'a photo of a person carrying a baseball bat',
++                        (5, 2): 'a photo of a person looking at a car', (3, 5): 'a photo of a person riding a bus',
++                        (17, 50): 'a photo of a person cutting a broccoli',
++                        (5, 14): 'a photo of a person looking at a bird',
++                        (13, 73): 'a photo of a person carrying a book',
++                        (5, 50): 'a photo of a person looking at a broccoli'}
+diff --git a/models/detection/layers/__init__.py b/models/detection/layers/__init__.py
+index 831472d..9ba4f50 100644
+--- a/models/detection/layers/__init__.py
++++ b/models/detection/layers/__init__.py
+@@ -4,6 +4,3 @@ from .backbone import build_backbone
+ from .vanilla_transformer import (TransformerEncoder, TransformerEncoderLayer,
+                                   TransformerDecoder, TransformerDecoderLayer,
+                                   _get_clones, _get_activation_fn)
+-
+-from .loss import SetCriterionHOI, PostProcessHOITriplet
+-from .matcher import build_matcher
+diff --git a/run_vcoco.py b/run_vcoco.py
+new file mode 100644
+index 0000000..478d418
+--- /dev/null
++++ b/run_vcoco.py
+@@ -0,0 +1,346 @@
++"""Isolated V-COCO adaptation of upstream SL-HOI, without CoRISP changes."""
++
++import argparse
++import hashlib
++import json
++import os
++from pathlib import Path
++import pickle
++import shutil
++import subprocess
++import time
++
++import torch
++from torch.utils.data import DataLoader, Dataset, Subset
++from accelerate import Accelerator
++from accelerate.utils import DistributedDataParallelKwargs, set_seed
++from omegaconf import OmegaConf
++from PIL import Image
++
++from datasets.hico import make_hico_transforms
++from datasets.vcoco import VCOCO
++from datasets.vcoco_text_label import vcoco_hoi_text_label, vcoco_obj_text_label
++from models.detection.hico.slhoi import build_detector
++from models.dinov3.hub.dinotxt import dinov3_vitl16_dinotxt_tet1280d20h24l
++from util.misc import collate_fn
++from vcoco_protocol import VCOCOExport, audit_training
++
++REPO = Path(__file__).resolve().parent
++WORKSPACE = REPO.parents[1]
++DATA = WORKSPACE.parent / "data/v-coco"
++WEIGHTS = WORKSPACE / "third_party/SL-HOI/weights/dinov3"
++BACKBONE = WEIGHTS / "dinov3_vitl16_pretrain_lvd1689m-8aa4cbdd.pth"
++TEXT = WEIGHTS / "dinov3_vitl16_dinotxt_vision_head_and_text_encoder-a442d8f5.pth"
++BPE = WEIGHTS / "bpe_simple_vocab_16e6.txt.gz"
++ARCHITECTURE = "slhoi_vcoco_official_architecture_inhouse_adapter_v1"
++
++
++def sha256(path):
++    digest = hashlib.sha256()
++    with Path(path).open("rb") as handle:
++        for block in iter(lambda: handle.read(8 * 1024 * 1024), b""):
++            digest.update(block)
++    return digest.hexdigest()
++
++
++def atomic_json(path, value):
++    path = Path(path)
++    temporary = path.with_suffix(path.suffix + ".partial")
++    temporary.write_text(json.dumps(value, indent=2, allow_nan=False) + "\n")
++    temporary.replace(path)
++
++
++def source_hashes():
++    return {str(p.relative_to(REPO)): sha256(p) for p in sorted(REPO.rglob("*.py"))}
++
++
++def configure(output):
++    cfg = OmegaConf.merge(OmegaConf.load(REPO / "configs/base.yaml"),
++                          OmegaConf.load(REPO / "configs/hico.yaml"))
++    cfg.INPUT.DATASET_FILE = "vcoco"
++    cfg.INPUT.NUM_OBJ_CLASSES = 81
++    cfg.INPUT.PATH = str(DATA)
++    cfg.MODEL.DINO.DINOTXT_WEIGHTS = str(TEXT)
++    cfg.MODEL.DINO.BACKBONE_WEIGHTS = str(BACKBONE)
++    cfg.MODEL.DINO.BPE_PATH_OR_URL = str(BPE)
++    cfg.ZERO_SHOT.CLASSIFIER.TRAIN = str(output / "classifier_train.pt")
++    cfg.ZERO_SHOT.CLASSIFIER.EVAL = str(output / "classifier_eval.pt")
++    cfg.RUNTIME.DEVICE = "cpu"
++    cfg.SOLVER.BATCH_SIZE = 1
++    cfg.SOLVER.GRADIENT_ACCUMULATION_STEPS = 4
++    return cfg
++
++
++def training_data():
++    return VCOCO("train", DATA / "images/train2014",
++                 DATA / "annotations/trainval_vcoco.json", make_hico_transforms("train"), 64, None)
++
++
++class TestImages(Dataset):
++    """Inference reads image IDs and RGB files, not action annotations."""
++
++    def __init__(self):
++        self.ids = [int(x) for x in (DATA / "data/splits/vcoco_test.ids").read_text().split()]
++        assert len(set(self.ids)) == len(self.ids) == 4946
++        self.transform = make_hico_transforms("val")
++
++    def __len__(self):
++        return len(self.ids)
++
++    def __getitem__(self, index):
++        image_id = self.ids[index]
++        path = DATA / "images/val2014" / f"COCO_val2014_{image_id:012d}.jpg"
++        image = Image.open(path).convert("RGB")
++        width, height = image.size
++        image, _ = self.transform(image, None)
++        return image, {"img_id": image_id, "orig_size": torch.tensor([height, width])}
++
++
++def prepare(output, accelerator):
++    if not accelerator.is_main_process:
++        raise ValueError("Prepare classifier assets on one process only")
++    audit = audit_training(training_data(), DATA / "data/splits/vcoco_trainval.ids")
++    model, tokenizer = dinov3_vitl16_dinotxt_tet1280d20h24l(
++        dinotxt_weights=str(TEXT), backbone_weights=str(BACKBONE), bpe_path_or_url=str(BPE))
++    model.to(accelerator.device).eval()
++
++    def encode(strings):
++        chunks = []
++        with torch.no_grad():
++            for start in range(0, len(strings), 16):
++                inputs = torch.cat([tokenizer.tokenize(s) for s in strings[start:start + 16]])
++                chunks.append(torch.nn.functional.normalize(
++                    model.encode_text(inputs.to(accelerator.device)).float(), dim=-1).cpu())
++        return torch.cat(chunks)
++
++    hoi = encode(list(vcoco_hoi_text_label.values()))
++    objects = encode([text for _, text in vcoco_obj_text_label])
++    assert hoi.shape == (263, 2048) and objects.shape == (82, 2048)
++    torch.save({"hoi_embedding_train": hoi}, output / "classifier_train.pt")
++    torch.save({"hoi_embedding_eval": hoi, "obj_text_embedding_eval": objects}, output / "classifier_eval.pt")
++    atomic_json(output / "class_order.json", {"hoi": list(vcoco_hoi_text_label.items()),
++                                             "objects": vcoco_obj_text_label})
++    inputs = {str(p): sha256(p) for p in [TEXT, BACKBONE, BPE,
++              DATA / "annotations/trainval_vcoco.json", DATA / "data/splits/vcoco_trainval.ids",
++              output / "classifier_train.pt", output / "classifier_eval.pt"]}
++    protocol = {"architecture": ARCHITECTURE, "seed": 42, "epochs": 60,
++                "lr": 1e-4, "weight_decay": 1e-4, "lr_drop_epoch": 40,
++                "world_size": 8, "micro_batch": 1, "accumulation": 4, "global_batch": 32,
++                "initialization": "generic DINOv3/DINO.txt only; no HICO task checkpoint",
++                "checkpoint_rule": "fixed final epoch 60; no test during training",
++                "evidence_type": "INHOUSE_DATASET_ADAPTATION",
++                "upstream_revision": subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=REPO, text=True).strip(),
++                "sources": source_hashes(), "inputs": inputs, "data": audit,
++                "runtime_changes": "DDP instead of ZeRO2; batch 1 x accumulation 4 instead of 2 x 2",
++                "export": "native SL-HOI class scores; GEN-VLKT role mapping; missing-entity NMS uses person geometry"}
++    atomic_json(output / "protocol.json", protocol)
++    OmegaConf.save(configure(output), output / "resolved_config.yaml")
++    print(json.dumps(audit), flush=True)
++
++
++def check_contract(output):
++    protocol = json.loads((output / "protocol.json").read_text())
++    if protocol["architecture"] != ARCHITECTURE or protocol["sources"] != source_hashes():
++        raise ValueError("Adapter source changed since protocol preparation")
++    for path, expected in protocol["inputs"].items():
++        if sha256(path) != expected:
++            raise ValueError(f"Input changed: {path}")
++    return protocol
++
++
++def validate(output, accelerator):
++    data = training_data()
++    audit = audit_training(data, DATA / "data/splits/vcoco_trainval.ids")
++    model, criterion, post = build_detector(configure(output), is_fresh_train=True)
++    model.to(accelerator.device).train()
++    criterion.to(accelerator.device)
++    null_index = next(i for i, row in enumerate(data.annotations)
++                      if any(e["object_id"] == -1 for e in row["hoi_annotation"]))
++    image, target = data[null_index]
++    samples, targets = collate_fn([(image, target)])
++    samples = samples.to(accelerator.device)
++    targets = [{k: v.to(accelerator.device) if torch.is_tensor(v) else v for k, v in t.items()} for t in targets]
++    with accelerator.autocast():
++        outputs = model(samples)
++        terms = criterion(outputs, targets)
++        loss = sum(terms[k] * criterion.weight_dict[k] for k in criterion.weight_dict)
++    accelerator.backward(loss)
++    assert torch.isfinite(loss)
++    for name, parameter in model.named_parameters():
++        if not parameter.requires_grad:
++            assert parameter.grad is None, name
++        elif parameter.grad is not None:
++            assert torch.isfinite(parameter.grad).all(), name
++    exported = VCOCOExport()(post["hoi"](outputs, target["orig_size"][None])[0], 1)
++    assert exported and "cut_instr" in exported[0] and "cut_obj" in exported[0]
++    report = {**audit, "finite_loss": float(loss.detach()), "gradient_check_passed": True,
++              "missing_entity_sample": target["filename"], "exported_queries": len(exported),
++              "peak_allocated_mib": torch.cuda.max_memory_allocated() / 2**20}
++    atomic_json(output / "conformance.json", report)
++    print(json.dumps(report), flush=True)
++
++
++def save_epoch(accelerator, output, epoch, fingerprint):
++    folder = output / f"checkpoint-epoch-{epoch:03d}"
++    # All ranks must finish the existence check before any rank starts saving.
++    exists = torch.tensor(int(folder.exists()), device=accelerator.device)
++    exists = accelerator.reduce(exists, reduction="sum")
++    if int(exists):
++        raise FileExistsError(folder)
++    accelerator.wait_for_everyone()
++    accelerator.save_state(str(folder))
++    accelerator.wait_for_everyone()
++    if accelerator.is_main_process:
++        required = [folder / f"random_states_{rank}.pkl" for rank in range(accelerator.num_processes)]
++        required += [folder / name for name in ("model.safetensors", "optimizer.bin", "custom_checkpoint_0.pkl")]
++        if not all(path.is_file() for path in required):
++            raise RuntimeError("Incomplete distributed checkpoint: refuse completion marker")
++        atomic_json(folder / "complete.json", {"completed_epochs": epoch, "protocol_sha256": fingerprint,
++                    "world_size": accelerator.num_processes, "training_complete": epoch == 60})
++        atomic_json(output / "latest.json", {"checkpoint": folder.name})
++        previous = output / f"checkpoint-epoch-{epoch - 1:03d}"
++        if epoch > 1 and (epoch - 1) % 10 and (previous / "complete.json").exists():
++            shutil.rmtree(previous)
++    accelerator.wait_for_everyone()
++
++
++def train(output, accelerator, resume):
++    protocol = check_contract(output)
++    if accelerator.num_processes != 8:
++        raise ValueError("Formal run requires 8 ranks and fixed global batch 32")
++    fingerprint = sha256(output / "protocol.json")
++    model, criterion, _ = build_detector(configure(output), is_fresh_train=True)
++    optimizer = torch.optim.AdamW([p for p in model.parameters() if p.requires_grad], lr=1e-4, weight_decay=1e-4)
++    scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, [40], gamma=0.1)
++    loader = DataLoader(training_data(), batch_size=1, shuffle=True, num_workers=2,
++                        collate_fn=collate_fn, pin_memory=True)
++    model, optimizer, loader = accelerator.prepare(model, optimizer, loader)
++    criterion.to(accelerator.device)
++    accelerator.register_for_checkpointing(scheduler)
++    start_epoch = 0
++    if resume:
++        metadata = json.loads((resume / "complete.json").read_text())
++        if metadata["protocol_sha256"] != fingerprint or metadata["world_size"] != 8:
++            raise ValueError("Incompatible checkpoint")
++        accelerator.load_state(str(resume))
++        start_epoch = metadata["completed_epochs"]
++    elif (output / "latest.json").exists():
++        raise ValueError("Existing run: explicitly resume its complete checkpoint")
++    accelerator.print(json.dumps({"phase": "train", "images": len(loader.dataset),
++        "steps_per_rank": len(loader), "world_size": accelerator.num_processes,
++        "global_batch": 32, "epochs": 60, "start_epoch": start_epoch,
++        "total_parameters": sum(p.numel() for p in model.parameters()),
++        "trainable_parameters": sum(p.numel() for p in model.parameters() if p.requires_grad)}))
++    for epoch in range(start_epoch, 60):
++        model.train()
++        if hasattr(loader, "set_epoch"):
++            loader.set_epoch(epoch)
++        started = time.monotonic()
++        losses = []
++        for step, (samples, targets) in enumerate(loader):
++            with accelerator.accumulate(model):
++                samples = samples.to(accelerator.device)
++                targets = [{k: v.to(accelerator.device) if torch.is_tensor(v) else v
++                            for k, v in target.items()} for target in targets]
++                with accelerator.autocast():
++                    terms = criterion(model(samples), targets)
++                    loss = sum(terms[k] * criterion.weight_dict[k] for k in criterion.weight_dict)
++                if not torch.isfinite(loss):
++                    raise FloatingPointError(f"Nonfinite loss at epoch {epoch + 1}, step {step}")
++                accelerator.backward(loss)
++                if accelerator.sync_gradients:
++                    norm = accelerator.clip_grad_norm_(model.parameters(), 0.1)
++                    if not torch.isfinite(norm):
++                        raise FloatingPointError("Nonfinite gradient norm")
++                optimizer.step()
++                optimizer.zero_grad()
++            losses.append(float(loss.detach()))
++            if step % 25 == 0:
++                accelerator.print(f"epoch={epoch + 1}/60 step={step + 1}/{len(loader)} loss={losses[-1]:.5f}", flush=True)
++        scheduler.step()
++        mean_loss = accelerator.reduce(torch.tensor(sum(losses) / len(losses), device=accelerator.device), reduction="mean")
++        record = {"epoch": epoch + 1, "train_loss": float(mean_loss), "seconds": time.monotonic() - started,
++                  "lr": optimizer.param_groups[0]["lr"], "test_evaluated": False,
++                  "peak_allocated_mib": torch.cuda.max_memory_allocated() / 2**20}
++        if accelerator.is_main_process:
++            with (output / "train.jsonl").open("a") as handle:
++                handle.write(json.dumps(record) + "\n")
++            print(json.dumps(record), flush=True)
++        save_epoch(accelerator, output, epoch + 1, fingerprint)
++
++
++def test(output, accelerator, resume):
++    check_contract(output)
++    if resume is None:
++        raise ValueError("Specify the fixed final checkpoint")
++    meta = json.loads((resume / "complete.json").read_text())
++    if (meta["completed_epochs"] != 60 or not meta["training_complete"]
++            or meta["protocol_sha256"] != sha256(output / "protocol.json")):
++        raise ValueError("Test is allowed only after the fixed 60-epoch training")
++    from safetensors.torch import load_file
++    model, _, post = build_detector(configure(output), is_fresh_train=False)
++    model.load_state_dict(load_file(str(resume / "model.safetensors")), strict=True)
++    model.to(accelerator.device).eval()
++    data = TestImages()
++    indices = list(range(accelerator.process_index, len(data), accelerator.num_processes))
++    loader = DataLoader(Subset(data, indices), batch_size=1, num_workers=2, collate_fn=collate_fn)
++    exporter = VCOCOExport()
++    records = []
++    seen = []
++    eval_dir = output / "official_test"
++    eval_dir.mkdir(exist_ok=True)
++    with torch.inference_mode():
++        for step, (samples, targets) in enumerate(loader):
++            with accelerator.autocast():
++                predictions = model(samples.to(accelerator.device))
++            results = post["hoi"](predictions, torch.stack([t["orig_size"] for t in targets]))
++            for prediction, target in zip(results, targets):
++                records.extend(exporter(prediction, target["img_id"]))
++                seen.append(target["img_id"])
++            if step % 100 == 0:
++                print(f"test rank={accelerator.process_index} {step + 1}/{len(loader)}", flush=True)
++    shard = eval_dir / f"rank{accelerator.process_index}.pkl"
++    with shard.with_suffix(".partial").open("wb") as handle:
++        pickle.dump({"image_ids": seen, "records": records}, handle, protocol=4)
++    shard.with_suffix(".partial").replace(shard)
++    accelerator.wait_for_everyone()
++    if accelerator.is_main_process:
++        all_ids, all_records = [], []
++        for rank in range(accelerator.num_processes):
++            with (eval_dir / f"rank{rank}.pkl").open("rb") as handle:
++                part = pickle.load(handle)
++            all_ids.extend(part["image_ids"])
++            all_records.extend(part["records"])
++        assert len(all_ids) == len(set(all_ids)) == 4946 and set(all_ids) == set(data.ids)
++        prediction_file = eval_dir / "predictions.pkl"
++        with prediction_file.with_suffix(".partial").open("wb") as handle:
++            pickle.dump(all_records, handle, protocol=4)
++        prediction_file.with_suffix(".partial").replace(prediction_file)
++        atomic_json(eval_dir / "coverage.json", {"images": 4946, "image_ids": sorted(all_ids),
++                    "checkpoint": str(resume), "checkpoint_sha256": sha256(resume / "model.safetensors")})
++    accelerator.wait_for_everyone()
++
++
++def main():
++    parser = argparse.ArgumentParser()
++    parser.add_argument("--mode", required=True, choices=["prepare", "validate", "train", "test"])
++    parser.add_argument("--output", required=True, type=Path)
++    parser.add_argument("--resume", type=Path)
++    args = parser.parse_args()
++    args.output.mkdir(parents=True, exist_ok=True)
++    accelerator = Accelerator(mixed_precision="bf16", gradient_accumulation_steps=4,
++        step_scheduler_with_optimizer=False,
++        kwargs_handlers=[DistributedDataParallelKwargs(find_unused_parameters=True)])
++    set_seed(42)
++    if args.mode == "prepare":
++        prepare(args.output, accelerator)
++    elif args.mode == "validate":
++        validate(args.output, accelerator)
++    elif args.mode == "train":
++        train(args.output, accelerator, args.resume)
++    else:
++        test(args.output, accelerator, args.resume)
++
++
++if __name__ == "__main__":
++    main()
+diff --git a/test_vcoco_adapter.py b/test_vcoco_adapter.py
+new file mode 100644
+index 0000000..5602f57
+--- /dev/null
++++ b/test_vcoco_adapter.py
+@@ -0,0 +1,60 @@
++import unittest
++
++import numpy as np
++import torch
++
++from datasets.vcoco_text_label import vcoco_hoi_text_label, vcoco_obj_text_label
++from vcoco_protocol import VCOCOExport, VERBS
++
++
++class VCOCOAdapterTests(unittest.TestCase):
++    def prediction(self, missing=False):
++        return {"hoi_scores": torch.zeros(1, 263), "obj_scores": torch.zeros(1, 82),
++                "labels": torch.tensor([0, 80 if missing else 43]),
++                "boxes": torch.tensor([[10., 20., 80., 100.], [20., 25., 50., 60.]]),
++                "sub_ids": torch.tensor([0]), "obj_ids": torch.tensor([1])}
++
++    def test_label_contract(self):
++        self.assertEqual(len(vcoco_hoi_text_label), 263)
++        self.assertEqual([i for i, _ in vcoco_obj_text_label], list(range(82)))
++        self.assertEqual({v for v, _ in vcoco_hoi_text_label}, set(range(29)))
++        self.assertIn((16, 80), vcoco_hoi_text_label)
++        self.assertIn((17, 80), vcoco_hoi_text_label)
++
++    def test_role_scores_are_distinct(self):
++        prediction = self.prediction()
++        keys = list(vcoco_hoi_text_label)
++        prediction["hoi_scores"][0, keys.index((16, 43))] = .9
++        prediction["hoi_scores"][0, keys.index((17, 53))] = .2
++        record = VCOCOExport()(prediction, 123)[0]
++        self.assertAlmostEqual(record["cut_instr"][-1], .9, places=6)
++        self.assertAlmostEqual(record["cut_obj"][-1], .2, places=6)
++        self.assertAlmostEqual(record["cut_agent"], .9, places=6)
++
++    def test_missing_entity_is_not_background(self):
++        record = VCOCOExport()(self.prediction(missing=True), 123)[0]
++        self.assertTrue(np.isnan(record["cut_obj"][:4]).all())
++        self.assertFalse(np.isnan(record["person_box"]).any())
++        self.assertEqual(len([v for v in VERBS if v.endswith(("_obj", "_instr"))]), 25)
++        self.assertEqual(len([key for key in record if key.endswith("_agent")]), 26)
++
++    def test_native_score_addition(self):
++        prediction = self.prediction()
++        prediction["obj_scores"][0, 43] = .5
++        prediction["hoi_scores"][0, list(vcoco_hoi_text_label).index((16, 43))] = .3
++        self.assertAlmostEqual(VCOCOExport()(prediction, 1)[0]["cut_instr"][-1], .55, places=6)
++
++    def test_null_nms_does_not_use_unsupervised_entity_geometry(self):
++        prediction = self.prediction(missing=True)
++        prediction["hoi_scores"] = prediction["hoi_scores"].repeat(2, 1)
++        prediction["obj_scores"] = prediction["obj_scores"].repeat(2, 1)
++        prediction["labels"] = torch.tensor([0, 0, 80, 80])
++        prediction["boxes"] = torch.tensor([[10., 20., 80., 100.], [10., 20., 80., 100.],
++                                             [1., 1., 2., 2.], [1000., 1000., 1200., 1200.]])
++        prediction["sub_ids"] = torch.tensor([0, 1])
++        prediction["obj_ids"] = torch.tensor([2, 3])
++        self.assertEqual(len(VCOCOExport()(prediction, 1)), 1)
++
++
++if __name__ == "__main__":
++    unittest.main()
+diff --git a/vcoco_protocol.py b/vcoco_protocol.py
+new file mode 100644
+index 0000000..9d3196e
+--- /dev/null
++++ b/vcoco_protocol.py
+@@ -0,0 +1,102 @@
++"""V-COCO export for native SL-HOI scores; no CoRISP modules or learned adapter.
++
++Label and null conventions follow GEN-VLKT's released V-COCO adapter.
++The class score is SL-HOI's native sigmoid(HOI) + sigmoid(noun)^2.
++"""
++
++from collections import defaultdict
++
++import numpy as np
++import torch
++
++from datasets.vcoco_text_label import vcoco_hoi_text_label
++from datasets.hico_eval_triplet import HICOEvaluator
++
++VERBS = (
++    "hold_obj", "stand", "sit_instr", "ride_instr", "walk", "look_obj",
++    "hit_instr", "hit_obj", "eat_obj", "eat_instr", "jump_instr", "lay_instr",
++    "talk_on_phone_instr", "carry_obj", "throw_obj", "catch_obj", "cut_instr",
++    "cut_obj", "run", "work_on_computer_instr", "ski_instr", "surf_instr",
++    "skateboard_instr", "smile", "drink_instr", "kick_obj", "point_instr",
++    "read_obj", "snowboard_instr",
++)
++
++
++class VCOCOExport:
++    # Reuse the upstream paired-box suppression, with the published defaults.
++    pairwise_nms = HICOEvaluator.pairwise_nms
++    thres_nms = 0.7
++    nms_alpha = 1.0
++    nms_beta = 0.5
++
++    def __init__(self):
++        self.keys = list(vcoco_hoi_text_label)
++        self.by_verb = [[i for i, (v, _) in enumerate(self.keys) if v == verb]
++                        for verb in range(len(VERBS))]
++
++    def __call__(self, prediction, image_id):
++        hoi = prediction["hoi_scores"].float().numpy()
++        noun = prediction["obj_scores"].float().numpy()
++        scores = hoi + noun[:, [n for _, n in self.keys]] ** 2
++        scores = np.stack([scores[:, indices].max(1) for indices in self.by_verb], 1)
++        labels = prediction["labels"].numpy()
++        boxes = prediction["boxes"].float().numpy()
++        subjects = prediction["sub_ids"].numpy()
++        objects = prediction["obj_ids"].numpy()
++        groups = defaultdict(list)
++        for q, obj in enumerate(objects):
++            groups[int(labels[obj])].append(q)
++        keep = []
++        for category, indices in groups.items():
++            indices = np.asarray(indices)
++            sb = boxes[subjects[indices]]
++            # A missing entity has no geometric extent. Suppress duplicates
++            # using the person box, not an unsupervised predicted entity box.
++            ob = sb if category == 80 else boxes[objects[indices]]
++            retained = self.pairwise_nms(sb, ob, scores[indices].max(1))
++            keep.extend(indices[retained].tolist())
++        records = []
++        for q in keep:
++            record = {"image_id": int(image_id), "person_box": boxes[subjects[q]].tolist()}
++            object_box = ([float("nan")] * 4 if labels[objects[q]] == 80
++                          else boxes[objects[q]].tolist())
++            for verb, score in zip(VERBS, scores[q]):
++                score = float(score)
++                if verb.endswith(("_obj", "_instr")):
++                    record[verb] = object_box + [score]
++                    agent = verb.rsplit("_", 1)[0] + "_agent"
++                    record[agent] = max(score, record.get(agent, 0.0))
++                else:
++                    record[verb + "_agent"] = score
++            records.append(record)
++        return records
++
++
++def audit_training(data, split_ids):
++    expected = {int(x) for x in split_ids.read_text().split()}
++    observed = set()
++    supported = set(vcoco_hoi_text_label)
++    null_count = 0
++    role_counts = {v: 0 for v in VERBS}
++    for item in data.annotations:
++        image_id = int(item["file_name"].split("_")[-1].split(".")[0])
++        if image_id in observed:
++            raise ValueError(f"Duplicate train image {image_id}")
++        observed.add(image_id)
++        if not (data.img_folder / item["file_name"]).is_file():
++            raise FileNotFoundError(item["file_name"])
++        for edge in item["hoi_annotation"]:
++            subject, obj, verb = edge["subject_id"], edge["object_id"], edge["category_id"]
++            if item["annotations"][subject]["category_id"] != 1:
++                raise ValueError("Non-human V-COCO subject")
++            noun = 80 if obj == -1 else data._valid_obj_ids.index(item["annotations"][obj]["category_id"])
++            if (verb, noun) not in supported:
++                raise ValueError(f"Unmapped training class {(verb, noun)}")
++            null_count += obj == -1
++            role_counts[VERBS[verb]] += 1
++    if observed != expected or len(observed) != 5400:
++        raise ValueError("Training images do not match the official 5400-image trainval split")
++    return {"images": len(observed), "missing_entity_edges": null_count,
++            "role_counts": role_counts, "hoi_classes": len(supported),
++            "entity_null_class": 80, "background_class": 81,
++            "test_annotations_read": False}

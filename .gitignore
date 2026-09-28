@@ -1,0 +1,15 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv*/
+**/runs/
+outputs/
+**/assets/
+**/checkpoints/
+**/weights/
+*.pth
+*.pt
+*.pickle
+*.pkl
+*.jsonl
+.env*

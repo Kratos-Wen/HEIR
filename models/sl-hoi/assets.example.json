@@ -1,0 +1,4 @@
+{
+  "DINO_WEIGHTS": "/path/to/dino_weights",
+  "VCOCO": "/path/to/vcoco"
+}

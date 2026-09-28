@@ -1,0 +1,164 @@
+{
+  "assets": {
+    "QPIC_R101_PARAM_PATH": {
+      "mounts": [
+        [
+          "assets/qpic_r101_param_path/qpic_resnet101_vcoco.pth",
+          ""
+        ]
+      ],
+      "sha256": {
+        "assets/qpic_r101_param_path/qpic_resnet101_vcoco.pth": "8484c1f6c0d3c6ff04e28895352bea8175e7e834f82c96c0692cde54d9d50b62"
+      }
+    },
+    "QPIC_R50_PARAM_PATH": {
+      "mounts": [
+        [
+          "assets/qpic_r50_param_path/qpic_resnet50_vcoco.pth",
+          ""
+        ]
+      ],
+      "sha256": {
+        "assets/qpic_r50_param_path/qpic_resnet50_vcoco.pth": "e34fb44596d4e499402d0f3f0b33ca6a6e402358ec053c1c6b103283871446ac"
+      }
+    },
+    "VCOCO": {
+      "mounts": [
+        [
+          "data/v-coco",
+          ""
+        ]
+      ],
+      "sha256": {}
+    }
+  },
+  "commands": {
+    "sources": {
+      "argv": [
+        "{python}",
+        "{root}/workspace/fetch_sources.py"
+      ],
+      "assets": [],
+      "cwd": "{root}/workspace",
+      "distributed": false,
+      "run_name": "sources",
+      "world_size": 1,
+      "pythonpath": [
+        "workspace"
+      ]
+    },
+    "qpic_r101-infer": {
+      "argv": [
+        "{python}",
+        "generate_vcoco_official.py",
+        "--param_path",
+        "{root}/assets/qpic_r101_param_path/qpic_resnet101_vcoco.pth",
+        "--save_path",
+        "{output}/predictions.pkl",
+        "--hoi_path",
+        "{root}/data/v-coco",
+        "--batch_size",
+        "1",
+        "--num_workers",
+        "2",
+        "--backbone",
+        "resnet101",
+        "--num_queries",
+        "100",
+        "--dec_layers",
+        "6"
+      ],
+      "assets": [
+        "VCOCO",
+        "QPIC_R101_PARAM_PATH"
+      ],
+      "cwd": "{root}/workspace/reference_repos/qpic",
+      "distributed": false,
+      "run_name": "qpic_r101",
+      "world_size": 1
+    },
+    "qpic_r101-score": {
+      "argv": [
+        "{python}",
+        "{root}/workspace/vcoco_eval/scripts/evaluate_vcoco_official.py",
+        "--cache",
+        "{output}/predictions.pkl",
+        "--vsrl-json",
+        "{root}/data/v-coco/data/vcoco/vcoco_test.json",
+        "--coco-json",
+        "{root}/data/v-coco/data/instances_vcoco_all_2014.json",
+        "--split-ids",
+        "{root}/data/v-coco/data/splits/vcoco_test.ids",
+        "--evaluator",
+        "{root}/data/v-coco/vsrl_eval.py",
+        "--output-json",
+        "{output}/official_metrics.json",
+        "--agent-ap"
+      ],
+      "assets": [
+        "VCOCO"
+      ],
+      "cwd": "{root}/workspace",
+      "distributed": false,
+      "run_name": "qpic_r101",
+      "world_size": 1
+    },
+    "qpic_r50-infer": {
+      "argv": [
+        "{python}",
+        "generate_vcoco_official.py",
+        "--param_path",
+        "{root}/assets/qpic_r50_param_path/qpic_resnet50_vcoco.pth",
+        "--save_path",
+        "{output}/predictions.pkl",
+        "--hoi_path",
+        "{root}/data/v-coco",
+        "--batch_size",
+        "1",
+        "--num_workers",
+        "2",
+        "--backbone",
+        "resnet50",
+        "--num_queries",
+        "100",
+        "--dec_layers",
+        "6"
+      ],
+      "assets": [
+        "VCOCO",
+        "QPIC_R50_PARAM_PATH"
+      ],
+      "cwd": "{root}/workspace/reference_repos/qpic",
+      "distributed": false,
+      "run_name": "qpic_r50",
+      "world_size": 1
+    },
+    "qpic_r50-score": {
+      "argv": [
+        "{python}",
+        "{root}/workspace/vcoco_eval/scripts/evaluate_vcoco_official.py",
+        "--cache",
+        "{output}/predictions.pkl",
+        "--vsrl-json",
+        "{root}/data/v-coco/data/vcoco/vcoco_test.json",
+        "--coco-json",
+        "{root}/data/v-coco/data/instances_vcoco_all_2014.json",
+        "--split-ids",
+        "{root}/data/v-coco/data/splits/vcoco_test.ids",
+        "--evaluator",
+        "{root}/data/v-coco/vsrl_eval.py",
+        "--output-json",
+        "{output}/official_metrics.json",
+        "--agent-ap"
+      ],
+      "assets": [
+        "VCOCO"
+      ],
+      "cwd": "{root}/workspace",
+      "distributed": false,
+      "run_name": "qpic_r50",
+      "world_size": 1
+    }
+  },
+  "family": "qpic"
+}

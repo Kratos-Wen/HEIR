@@ -1,0 +1,254 @@
+{
+  "assets": {
+    "RLIPV2_SWINL_PARAM_PATH": {
+      "mounts": [
+        [
+          "assets/rlipv2_swinl_param_path/checkpoint0019.pth",
+          ""
+        ]
+      ],
+      "sha256": {
+        "assets/rlipv2_swinl_param_path/checkpoint0019.pth": "6b40b9982e0a4fdd4b3aa0f3fc5c70e13bcd6f54ea07a476dc074e2e19724a74"
+      }
+    },
+    "RLIPV2_SWINL_TEXT_ENCODER_TYPE": {
+      "mounts": [
+        [
+          "assets/rlipv2_swinl_text_encoder_type/roberta-base",
+          ""
+        ]
+      ],
+      "sha256": {}
+    },
+    "RLIPV2_SWINT_PARAM_PATH": {
+      "mounts": [
+        [
+          "assets/rlipv2_swint_param_path/RLIP_PDA_v2_VCOCO_SwinT_VGCOCOO365_RQL_LSE_RPL_20e_L1_20e_checkpoint0019.pth",
+          ""
+        ]
+      ],
+      "sha256": {
+        "assets/rlipv2_swint_param_path/RLIP_PDA_v2_VCOCO_SwinT_VGCOCOO365_RQL_LSE_RPL_20e_L1_20e_checkpoint0019.pth": "b6910d3a02cf2d9fa30f8810d94880b60c6e67f1df946be62045dafa418542ea"
+      }
+    },
+    "RLIPV2_SWINT_TEXT_ENCODER_TYPE": {
+      "mounts": [
+        [
+          "assets/rlipv2_swint_text_encoder_type/roberta-base",
+          ""
+        ]
+      ],
+      "sha256": {}
+    },
+    "VCOCO": {
+      "mounts": [
+        [
+          "data/v-coco",
+          ""
+        ]
+      ],
+      "sha256": {}
+    }
+  },
+  "commands": {
+    "sources": {
+      "argv": [
+        "{python}",
+        "{root}/workspace/fetch_sources.py"
+      ],
+      "assets": [],
+      "cwd": "{root}/workspace",
+      "distributed": false,
+      "run_name": "sources",
+      "world_size": 1,
+      "pythonpath": [
+        "workspace"
+      ]
+    },
+    "rlipv2_swinl-infer": {
+      "argv": [
+        "{python}",
+        "generate_vcoco_official.py",
+        "--param_path",
+        "{root}/assets/rlipv2_swinl_param_path/checkpoint0019.pth",
+        "--save_path",
+        "{output}/predictions.pkl",
+        "--hoi_path",
+        "{root}/data/v-coco",
+        "--batch_size",
+        "1",
+        "--num_workers",
+        "2",
+        "--backbone",
+        "swin_large",
+        "--num_obj_classes",
+        "81",
+        "--num_verb_classes",
+        "29",
+        "--dec_layers",
+        "3",
+        "--enc_layers",
+        "6",
+        "--num_queries",
+        "200",
+        "--num_feature_levels",
+        "4",
+        "--with_box_refine",
+        "--RLIP_ParSeDA_v2",
+        "--num_patterns",
+        "0",
+        "--pe_temperatureH",
+        "20",
+        "--pe_temperatureW",
+        "20",
+        "--dim_feedforward",
+        "2048",
+        "--dropout",
+        "0.0",
+        "--drop_path_rate",
+        "0.5",
+        "--use_no_obj_token",
+        "--fusion_type",
+        "GLIP_attn",
+        "--gating_mechanism",
+        "VXAc",
+        "--verb_query_tgt_type",
+        "vanilla_MBF",
+        "--fusion_interval",
+        "2",
+        "--fusion_last_vis",
+        "--lang_aux_loss",
+        "--text_encoder_type",
+        "{root}/assets/rlipv2_swinl_text_encoder_type/roberta-base"
+      ],
+      "assets": [
+        "VCOCO",
+        "RLIPV2_SWINL_PARAM_PATH",
+        "RLIPV2_SWINL_TEXT_ENCODER_TYPE"
+      ],
+      "cwd": "{root}/workspace/reference_repos/RLIPv2",
+      "distributed": false,
+      "run_name": "rlipv2_swinl",
+      "world_size": 1
+    },
+    "rlipv2_swinl-score": {
+      "argv": [
+        "{python}",
+        "{root}/workspace/vcoco_eval/scripts/evaluate_vcoco_official.py",
+        "--cache",
+        "{output}/predictions.pkl",
+        "--vsrl-json",
+        "{root}/data/v-coco/data/vcoco/vcoco_test.json",
+        "--coco-json",
+        "{root}/data/v-coco/data/instances_vcoco_all_2014.json",
+        "--split-ids",
+        "{root}/data/v-coco/data/splits/vcoco_test.ids",
+        "--evaluator",
+        "{root}/data/v-coco/vsrl_eval.py",
+        "--output-json",
+        "{output}/official_metrics.json",
+        "--agent-ap"
+      ],
+      "assets": [
+        "VCOCO"
+      ],
+      "cwd": "{root}/workspace",
+      "distributed": false,
+      "run_name": "rlipv2_swinl",
+      "world_size": 1
+    },
+    "rlipv2_swint-infer": {
+      "argv": [
+        "{python}",
+        "generate_vcoco_official.py",
+        "--param_path",
+        "{root}/assets/rlipv2_swint_param_path/RLIP_PDA_v2_VCOCO_SwinT_VGCOCOO365_RQL_LSE_RPL_20e_L1_20e_checkpoint0019.pth",
+        "--save_path",
+        "{output}/predictions.pkl",
+        "--hoi_path",
+        "{root}/data/v-coco",
+        "--batch_size",
+        "1",
+        "--num_workers",
+        "2",
+        "--backbone",
+        "swin_tiny",
+        "--num_obj_classes",
+        "81",
+        "--num_verb_classes",
+        "29",
+        "--dec_layers",
+        "3",
+        "--enc_layers",
+        "6",
+        "--num_queries",
+        "200",
+        "--num_feature_levels",
+        "4",
+        "--with_box_refine",
+        "--RLIP_ParSeDA_v2",
+        "--num_patterns",
+        "0",
+        "--pe_temperatureH",
+        "20",
+        "--pe_temperatureW",
+        "20",
+        "--dim_feedforward",
+        "2048",
+        "--dropout",
+        "0.0",
+        "--drop_path_rate",
+        "0.2",
+        "--use_no_obj_token",
+        "--fusion_type",
+        "GLIP_attn",
+        "--gating_mechanism",
+        "VXAc",
+        "--verb_query_tgt_type",
+        "vanilla_MBF",
+        "--fusion_interval",
+        "2",
+        "--fusion_last_vis",
+        "--lang_aux_loss",
+        "--text_encoder_type",
+        "{root}/assets/rlipv2_swint_text_encoder_type/roberta-base"
+      ],
+      "assets": [
+        "VCOCO",
+        "RLIPV2_SWINT_PARAM_PATH",
+        "RLIPV2_SWINT_TEXT_ENCODER_TYPE"
+      ],
+      "cwd": "{root}/workspace/reference_repos/RLIPv2",
+      "distributed": false,
+      "run_name": "rlipv2_swint",
+      "world_size": 1
+    },
+    "rlipv2_swint-score": {
+      "argv": [
+        "{python}",
+        "{root}/workspace/vcoco_eval/scripts/evaluate_vcoco_official.py",
+        "--cache",
+        "{output}/predictions.pkl",
+        "--vsrl-json",
+        "{root}/data/v-coco/data/vcoco/vcoco_test.json",
+        "--coco-json",
+        "{root}/data/v-coco/data/instances_vcoco_all_2014.json",
+        "--split-ids",
+        "{root}/data/v-coco/data/splits/vcoco_test.ids",
+        "--evaluator",
+        "{root}/data/v-coco/vsrl_eval.py",
+        "--output-json",
+        "{output}/official_metrics.json",
+        "--agent-ap"
+      ],
+      "assets": [
+        "VCOCO"
+      ],
+      "cwd": "{root}/workspace",
+      "distributed": false,
+      "run_name": "rlipv2_swint",
+      "world_size": 1
+    }
+  },
+  "family": "rlipv2"
+}
