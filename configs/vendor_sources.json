@@ -1,0 +1,12 @@
+{
+  "pvic": {
+    "url": "https://github.com/fredzzhang/pvic",
+    "commit": "35dd43aaf23247e631f9300b46df3bb7d163dc02",
+    "submodules": true
+  },
+  "slhoi": {
+    "url": "https://github.com/MPI-Lab/SL-HOI",
+    "commit": "64483cb35639198bbea66af500d1d05f8ac1e978",
+    "patch": "configs/vendor_patches/slhoi.patch"
+  }
+}

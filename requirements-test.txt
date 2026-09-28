@@ -1,0 +1,7 @@
+# Install the torch/torchvision pair in docs/INSTALLATION.md first.
+numpy==1.26.4
+scipy==1.11.4
+pillow==10.2.0
+pycocotools==2.0.7
+pytest==8.1.1
+PyYAML==6.0.2

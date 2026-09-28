@@ -1,0 +1,16 @@
+name: Usage question
+description: Ask about input formats, model configuration or evaluation.
+title: "[Question] "
+body:
+  - type: textarea
+    id: question
+    attributes:
+      label: Question
+      description: Describe the operation and relevant documentation section.
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Configuration
+      description: Include the source revision and a sanitized command, without private files or paths.

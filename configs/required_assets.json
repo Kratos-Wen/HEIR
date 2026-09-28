@@ -1,0 +1,23 @@
+{
+  "schema": "corisp_portable_assets_v1",
+  "weights_committed": false,
+  "files": {
+    "bpe_simple_vocab_16e6.txt.gz": "924691ac288e54409236115652ad4aa250f48203de50a9e4722a6ecd48d6804a",
+    "dinov3_vitl16_pretrain_lvd1689m-8aa4cbdd.pth": "8aa4cbddda325040fc78db2c272754af6ebe8ff2c55f6ec4f1964d8890f66035",
+    "dinov3_vitl16_dinotxt_vision_head_and_text_encoder-a442d8f5.pth": "a442d8f52a3a7ad715bf6b7d8117fb3a84d54249389b0a13f6956cd0d2eca4f0",
+    "h-defm-detr-swinL-dp0-mqs-lft-iter-2stg-vcoco.pth": "a4610d3e3bb40bebd8595c18e51dab3072468eadc095c9aa0b9eacedbe6f9b57",
+    "HEIR_DETECTOR_best.pth": "51437e90270899c18a2fbb90e785b4cc5f552060cf25d7d007489afca4918acf",
+    "HEIR_PROTOTYPES.pt": "28cc193618258d1c8c4d2b38af562a6c7bdbd4001979fc092dd96e3f04bca522"
+  },
+  "heir_release": {
+    "train_images": 15158,
+    "val_images": 615,
+    "test_images": 2957,
+    "nouns": 437,
+    "verbs": 105,
+    "roles": 6,
+    "train_sha256": "96da2bc505a7b232a0b16cfef5ca0dac3d0994117f91c79e379df82b3680dc7a",
+    "vocabulary_sha256": "1ed0d712eb8a00d39a6c68dd50fc76c5eb77405594bd9f2ea13657870c792f69"
+  },
+  "prototype_note": "The exact HEIR prototype artifact is required. Missing files or differing hashes are errors; regeneration is not a substitute."
+}
