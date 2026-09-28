@@ -6,8 +6,8 @@
     "dinov3_vitl16_pretrain_lvd1689m-8aa4cbdd.pth": "8aa4cbddda325040fc78db2c272754af6ebe8ff2c55f6ec4f1964d8890f66035",
     "dinov3_vitl16_dinotxt_vision_head_and_text_encoder-a442d8f5.pth": "a442d8f52a3a7ad715bf6b7d8117fb3a84d54249389b0a13f6956cd0d2eca4f0",
     "h-defm-detr-swinL-dp0-mqs-lft-iter-2stg-vcoco.pth": "a4610d3e3bb40bebd8595c18e51dab3072468eadc095c9aa0b9eacedbe6f9b57",
-    "HEIR_DETECTOR_best.pth": "51437e90270899c18a2fbb90e785b4cc5f552060cf25d7d007489afca4918acf",
-    "HEIR_PROTOTYPES.pt": "28cc193618258d1c8c4d2b38af562a6c7bdbd4001979fc092dd96e3f04bca522"
+    "HEIR_DETECTOR_best.pth": "b726587f2622e5d6d091588847f6d6b980e6b4f6180b4876f761ee66736d7d7c",
+    "HEIR_PROTOTYPES.pt": "6a2d47645ec47d25a95d05e04828de1f6cf9083a7f1a86f8e75d03949c387d2a"
   },
   "heir_release": {
     "train_images": 15158,

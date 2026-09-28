@@ -2,7 +2,7 @@
 import hashlib
 from pathlib import Path
 
-HEIR_PROTOTYPES_SHA256 = '28cc193618258d1c8c4d2b38af562a6c7bdbd4001979fc092dd96e3f04bca522'
+HEIR_PROTOTYPES_SHA256 = '6a2d47645ec47d25a95d05e04828de1f6cf9083a7f1a86f8e75d03949c387d2a'
 
 
 def require_asset(path, expected):

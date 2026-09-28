@@ -1,7 +1,7 @@
 {
   "corisp_heir/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
   "corisp_heir/adjoint_dp.py": "487935db9f6d79fcc023d9f7e59ff2706b44c2523618b9daba515ef63a7cd2eb",
-  "corisp_heir/assets.py": "1ffd275b874da418b2b51384e7f7a21a71140f54736ab3d9c9e85b28b8bfe5a6",
+  "corisp_heir/assets.py": "d2bafb03c6a804c17d7015838fa81439c1acd74ddc69c13724305eeca033aae1",
   "corisp_heir/batched_dp.py": "0fa33bda7e5a6676369318d4e5807d946bc8273936e5288fd4d2400bb155e24c",
   "corisp_heir/batched_execution.py": "6fe11d475bbe39bcbd32f807ba6cdab025da4b089f63b7e98d6a03f3e52a159c",
   "corisp_heir/cached_energy.py": "a6684a6054193bf8f9eb0d025c037d6446ade7dbb48750848238d2f3d52b364d",
@@ -77,7 +77,7 @@
   "tests/test_corisp_grounded_role_set.py": "41c6f0b8e96faea974550b4168b34d4da2da44e002e7216635982f28588acd5f",
   "tests/test_corisp_role_arity_event_field.py": "7577660fb04bb8d5f26af4f6b0098f8b2b21a6b3da370cc9d5f444b95235150f",
   "tests/test_corisp_role_filler_event_field.py": "f35ee9cd4117266c83201fdb3c4c6d3412d93c3d8594eec5436b12c0fc502274",
-  "tests/test_dinotxt_event_adapter_precision.py": "7e6b8d6ee7d52189471108edf50daef3c4569e4dd46bd72d5bf21f2339aba9c8",
+  "tests/test_dinotxt_event_adapter_precision.py": "5c944fe2c335938bf4b57e1e250c1cdfe9d0428bec81c9b27f2de9a8910068b9",
   "tests/test_documentation_contract.py": "dacadffeccda28222c6cd5a578b9d52f47749d623a955cf152a02ad9b546bf26",
   "tests/test_entrypoints.py": "fad1bafd527f088b6885f42aa4e0b2d4dd096f600af7565eb33134d018bf2416",
   "tests/test_heir_sets.py": "6c3890179ca8b337bb1ac6c816017c6724532804858a8b5cc80464b80c27a7b5",
