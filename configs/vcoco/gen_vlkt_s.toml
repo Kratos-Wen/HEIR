@@ -3,7 +3,7 @@ benchmark = "vcoco"
 # V-COCO baselines run from the pinned release of this repository's reproductions/vcoco-baselines branch.
 repository = "https://github.com/Kratos-Wen/HEIR"
 branch = "reproductions/vcoco-baselines"
-commit = "f813e662f19011d01a489f5a55687c022b43a316"
+commit = "ed265a74a592748b0b992267c7cc06ee0ad07f03"
 model = "gen-vlkt"
 variant = "gen_vlkt_s"
 checkpoint = "gen_vlkt_s_vcoco"
