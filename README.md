@@ -24,7 +24,7 @@ Yufan Chen<sup>1</sup>, Junwei Zheng<sup>5</sup>, Ruiping Liu<sup>1</sup>, Jiale
 
 ## HEIR benchmark
 
-**Data:** [Hugging Face](https://huggingface.co/datasets/KratosWen/HEIR) · [Download and release status](docs/DATASET.md)
+**Data:** [Hugging Face](https://huggingface.co/datasets/KratosWen/HEIR) · [Download instructions](docs/DATASET.md)
 
 Who participates in an action, and what function does each participant serve? **HEIR** represents a person–action event as a complete set of participants and their functional roles. It supports multiple participants with the same role and entities shared across events.
 
@@ -73,7 +73,7 @@ Role AP excludes `point`. Complete-set evaluation uses native role slots; Dual a
 
 ## What is included
 
-This is a source-code release. HEIR data is hosted separately on [Hugging Face](https://huggingface.co/datasets/KratosWen/HEIR); see [dataset release status](docs/DATASET.md). Dataset annotations, images, semantic prototypes, support tables and pretrained or trained weights are not included. The synthetic example and numerical tests run without these assets or a GPU.
+This is a source-code release. HEIR data is hosted separately on [Hugging Face](https://huggingface.co/datasets/KratosWen/HEIR); see [download instructions](docs/DATASET.md). Dataset annotations, images, semantic prototypes, support tables and pretrained or trained weights are not included. The synthetic example and numerical tests run without these assets or a GPU.
 
 | Component | Entry point |
 | --- | --- |

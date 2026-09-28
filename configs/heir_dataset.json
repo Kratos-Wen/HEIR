@@ -1,0 +1,70 @@
+{
+  "repo_id": "KratosWen/HEIR",
+  "revision": "4c3d43e49255f6fccd76c85f13592d9e4b225ab2",
+  "release": "v1.0-rc2",
+  "image_revision": "05ba21b81fa38356a2d1828a9d97ad14c94dedc2",
+  "split_counts": {
+    "train": 15158,
+    "val": 615,
+    "test": 2957
+  },
+  "image_count": 18730,
+  "image_bytes": 4401789583,
+  "files": {
+    "vocabulary.json": {
+      "path": "release/v1.0-rc2/vocabulary.json",
+      "sha256": "1ed0d712eb8a00d39a6c68dd50fc76c5eb77405594bd9f2ea13657870c792f69",
+      "size": 165030
+    },
+    "annotations/train.json": {
+      "path": "release/v1.0-rc2/annotations/train.json",
+      "sha256": "96da2bc505a7b232a0b16cfef5ca0dac3d0994117f91c79e379df82b3680dc7a",
+      "size": 12317669
+    },
+    "annotations/val.json": {
+      "path": "release/v1.0-rc2/annotations/val.json",
+      "sha256": "5ddd015c1572dbcd77c2fb47e99a4307270f451e2baecb8ce34004f59b22c937",
+      "size": 560936
+    },
+    "annotations/test.json": {
+      "path": "release/v1.0-rc2/annotations/test.json",
+      "sha256": "276d8f2683571510ff56502da2365714db32201e73d95183cccd905a093112e7",
+      "size": 2556523
+    },
+    "images.json": {
+      "path": "release/v1.0-rc2/images.json",
+      "sha256": "76e2404940d8bb5daddf715e52a44ead117f0510981e640e148ba7be025aa34d",
+      "size": 5738249
+    },
+    "image_files.json": {
+      "path": "release/v1.0-rc2/image_files.json",
+      "sha256": "be4d0cf7ce970746f33a552ba189841798c0579291b108615aa529cff848925c",
+      "size": 3983311
+    },
+    "MANIFEST.sha256": {
+      "path": "release/v1.0-rc2/MANIFEST.sha256",
+      "sha256": "ab4112617b1afa653bce6e1c8600212d20187d1675deccd2582be099f93567ee",
+      "size": 507
+    },
+    "CITATION.bib": {
+      "path": "CITATION.bib",
+      "sha256": "68ced2cda382ea5a2ccba9f4a7d38ba499b83ce7fdd2f37890317fb65abb0641",
+      "size": 524
+    },
+    "LICENSE-CC-BY-4.0.txt": {
+      "path": "LICENSE-CC-BY-4.0.txt",
+      "sha256": "9ba9550ad48438d0836ddab3da480b3b69ffa0aac7b7878b5a0039e7ab429411",
+      "size": 18657
+    },
+    "LICENSE.md": {
+      "path": "LICENSE.md",
+      "sha256": "7d2cac9e715c62d536d0e4d445a0cd87ec51b68672f6b976723ce40dca8affb6",
+      "size": 976
+    },
+    "README.md": {
+      "path": "README.md",
+      "sha256": "e0025602ec96f13423dbeacc228d39faae65767039e61418189b1dc0c20ff3da",
+      "size": 3710
+    }
+  }
+}
