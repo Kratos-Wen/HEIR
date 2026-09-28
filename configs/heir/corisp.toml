@@ -1,9 +1,9 @@
 name = "CoRISP (HEIR)"
 family = "corisp"
-checkpoint = "corisp_heir"   # entry in configs/checkpoints.toml (TODO: released from the CoRISP training cluster)
-# CoRISP is evaluated from the main branch of this repository (docs/REPRODUCTION.md there), at this commit:
+checkpoint = "corisp_heir"   # entry in configs/checkpoints.toml
+# CoRISP is evaluated from the compatible asset-release commit (docs/REPRODUCTION.md there):
 repository = "https://github.com/Kratos-Wen/HEIR"
-commit = "42327eced7b28ee7dcab3af67ba0634dcb92bfb4"
+commit = "ae654a848999718b59ac0ecfd1395e7a477c9f8c"
 assets = ["CORISP_WEIGHTS", "HEIR_DETECTOR", "HEIR_PROTOTYPES", "HEIR_COMPATIBILITY"]
 # released files: corisp_heir_detector, corisp_heir_prototypes, corisp_heir_compatibility in configs/checkpoints.toml;
 # CORISP_WEIGHTS holds the public DINOv3 and DINO.txt weights listed in main configs/required_assets.json.

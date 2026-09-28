@@ -1,3 +1,4 @@
+# Export bundle access currently requires permission; public sharing is pending.
 # Checkpoint registry. Only CoRISP weights and the HEIR assets below are published by us (Google Drive).
 # HEIR baselines are trained with the recipes in models/<model>; place the final checkpoint in checkpoint_dir under
 # the listed file name (released = false: no download, no checksum). V-COCO baselines use the authors' official
@@ -63,46 +64,50 @@ released = false   # train with the recipe in models/
 [heir_support]
 model = "HEIR support table (10,072 action--noun--role combinations)"
 file = "heir_support.csv"
-bytes = 320741
-sha256 = "8448ed4fe476462dd8eca17eb5f763b84ae8def7169602210d60c29a1d114b4b"
-url = "TODO: Google Drive link"  # used by every baseline
+bytes = 230525
+sha256 = "d7560659f8530d55ff46afddcd9e42bf543542ecf11566957c9e47c6c445b3fc"
+url = "https://drive.google.com/file/d/1xujEAlNI-ab2ghCjFE0w5lSABmJdxcdk/view"
+
 
 [corisp_heir_detector]
 model = "CoRISP HEIR detector (H-DETR Swin-L)"
 file = "HEIR_DETECTOR_best.pth"
-bytes = 874635490
-sha256 = "51437e90270899c18a2fbb90e785b4cc5f552060cf25d7d007489afca4918acf"
-url = "TODO: Google Drive link"  # pinned in main configs/required_assets.json
+bytes = 874635007
+sha256 = "b726587f2622e5d6d091588847f6d6b980e6b4f6180b4876f761ee66736d7d7c"
+url = "https://drive.google.com/file/d/1qLa3UH652W1Tv7AxX0m997GJ6cwJRLVk/view"
+
 
 [corisp_heir_prototypes]
 model = "CoRISP HEIR DINO.txt prototypes"
 file = "HEIR_PROTOTYPES.pt"
-bytes = 4591017
-sha256 = "28cc193618258d1c8c4d2b38af562a6c7bdbd4001979fc092dd96e3f04bca522"
-url = "TODO: Google Drive link"  # pinned in main corisp_heir/assets.py
+bytes = 4590604
+sha256 = "6a2d47645ec47d25a95d05e04828de1f6cf9083a7f1a86f8e75d03949c387d2a"
+url = "https://drive.google.com/file/d/1ZK8DIfHsDDlpYuuengVDQ4hjJwD_4woR/view"
+
 
 [corisp_heir_compatibility]
 model = "CoRISP HEIR compatibility inventory"
 file = "compatibility.json"
-bytes = 286502
-sha256 = "51188a19b8fc21ae97e58c969f16e4e1e6e46961f8c4e9272bf3f1683035bde8"
-url = "TODO: Google Drive link"  # bound by the CoRISP HEIR checkpoint
+bytes = 426263
+sha256 = "d9d687d0912ba5a52be69ddef672d612fac82fb02dd09a17dfe07508bc5511f6"
+url = "https://drive.google.com/file/d/1SpYCtk8fm-UllWrpkp9W6uvzm99NCqBt/view"
+
 
 [corisp_heir]
 model = "CoRISP (HEIR)"
-file = "TODO"
-bytes = 0
-sha256 = "TODO"
-url = "TODO: Google Drive link, uploaded from the CoRISP training cluster"
+file = "CoRISP_HEIR_epoch011.pth"
+bytes = 77353117
+sha256 = "8034bc924a724f45daedcc12880e32a2fa859ecf9423bda06704b792dc2dc809"
+url = "https://drive.google.com/file/d/1azvWtgfJQy1fAK1GF3TOdJfJ3oz66gC9/view"
+
 
 [corisp_vcoco]
 model = "CoRISP (V-COCO)"
-file = "TODO"
-bytes = 0
-sha256 = "TODO"
-url = "TODO: Google Drive link, uploaded from the CoRISP training cluster"
+file = "CoRISP_VCOCO_epoch030.pth"
+bytes = 1622071896
+sha256 = "8d1653fb9e6b43af6d327267a22fc2561862990e60a943a2b08757e9ed94af7b"
+url = "https://drive.google.com/file/d/1CBSqGumOh9afaiyE3ETrhe70zbZzjkBL/view"
 
-# V-COCO: official checkpoints released by the upstream authors (not redistributed here).
 
 [qpic_r101_vcoco]
 model = "QPIC (ResNet-101) (V-COCO, official)"

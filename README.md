@@ -11,7 +11,7 @@ This branch contains the HEIR relation and complete-set scoring tools used with 
 | `scorer/heir_eval_v02/` | Matching, AP computation and schema validation |
 | `scorer/state_map.py` | Per-state MAP set decoder shared with `main` |
 
-The repository contains source only. Images, annotations and predictions are not included; trained checkpoints are published separately and listed with their SHA-256 in `configs/checkpoints.toml`.
+The repository contains source only. Images, annotations and predictions are not included; CoRISP inference checkpoints and required HEIR assets are listed with their SHA-256 in `configs/checkpoints.toml`. Google Drive access currently requires permission; public sharing is pending. HEIR baseline weights are not distributed.
 
 ## Evaluate a released model
 
