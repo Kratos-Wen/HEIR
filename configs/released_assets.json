@@ -1,0 +1,71 @@
+{
+  "schema": "corisp_paper_asset_export_v1",
+  "code_base_commit": "42327eced7b28ee7dcab3af67ba0634dcb92bfb4",
+  "assets": {
+    "HEIR_DETECTOR_best.pth": {
+      "bytes": 874635007,
+      "sha256": "b726587f2622e5d6d091588847f6d6b980e6b4f6180b4876f761ee66736d7d7c",
+      "source_sha256": "8f6307e59d5fac4816d32b35c1702fa10fa463facc408821207d19c0c21efe1c",
+      "roundtrip_exact": true,
+      "model_tensors_unchanged": true,
+      "url": "https://drive.google.com/file/d/1qLa3UH652W1Tv7AxX0m997GJ6cwJRLVk/view"
+    },
+    "HEIR_PROTOTYPES.pt": {
+      "bytes": 4590604,
+      "sha256": "6a2d47645ec47d25a95d05e04828de1f6cf9083a7f1a86f8e75d03949c387d2a",
+      "source_sha256": "4ce6f9a11a7ccf1d49bc5cd64b42b4f370f1d316b97588883231b21177808e2f",
+      "roundtrip_exact": true,
+      "model_tensors_unchanged": true,
+      "url": "https://drive.google.com/file/d/1ZK8DIfHsDDlpYuuengVDQ4hjJwD_4woR/view"
+    },
+    "VCOCO_PROTOTYPES.pt": {
+      "bytes": 845582,
+      "sha256": "9a3033cc8853f34eae1e8828a8bcbfd3b3ba610b8a07964d8280b3e2d21323f5",
+      "source_sha256": "944563f883b115413e1e782fa77d9a2c9d48ad3992c7e4a2abab8fa7bae4f353",
+      "roundtrip_exact": true,
+      "model_tensors_unchanged": true,
+      "url": "https://drive.google.com/file/d/1dFiKfrkARp4QY6a4iv4bbGReXi-Paj7Q/view"
+    },
+    "VCOCO_ROLE_PROTOTYPES.pt": {
+      "bytes": 19106,
+      "sha256": "cfe134ee91d6545d9d924c5a380912b8c2d9c992b23af69ae370f3dc988ae27f",
+      "source_sha256": "f03a1ada3d93e32cc76eee936487a7c64da186b287be8e7976e2000b5301cc3c",
+      "roundtrip_exact": true,
+      "model_tensors_unchanged": true,
+      "url": "https://drive.google.com/file/d/1Y_hHxx0a2lTMFGkneX6qOmD08uMVdMur/view"
+    },
+    "compatibility.json": {
+      "bytes": 426263,
+      "sha256": "d9d687d0912ba5a52be69ddef672d612fac82fb02dd09a17dfe07508bc5511f6",
+      "support_bits_unchanged": true,
+      "original_content_sha256": "ede87c9fd08814c2de83425b157bd2aed6d572d582a7852ff1c596bbeeb738da",
+      "url": "https://drive.google.com/file/d/1SpYCtk8fm-UllWrpkp9W6uvzm99NCqBt/view"
+    },
+    "heir_support.csv": {
+      "bytes": 230525,
+      "sha256": "d7560659f8530d55ff46afddcd9e42bf543542ecf11566957c9e47c6c445b3fc",
+      "combinations": 10072,
+      "url": "https://drive.google.com/file/d/1xujEAlNI-ab2ghCjFE0w5lSABmJdxcdk/view"
+    },
+    "CoRISP_HEIR_epoch011.pth": {
+      "bytes": 77353117,
+      "sha256": "8034bc924a724f45daedcc12880e32a2fa859ecf9423bda06704b792dc2dc809",
+      "source_sha256": "73775d8aac8106c428a7899da92104a07a547b74dd66405c7c5ed92d0b74a29c",
+      "roundtrip_exact": true,
+      "model_tensors_unchanged": true,
+      "url": "https://drive.google.com/file/d/1azvWtgfJQy1fAK1GF3TOdJfJ3oz66gC9/view"
+    },
+    "CoRISP_VCOCO_epoch030.pth": {
+      "bytes": 1622071896,
+      "sha256": "8d1653fb9e6b43af6d327267a22fc2561862990e60a943a2b08757e9ed94af7b",
+      "source_sha256": "61d023d8e98b9bad82871ffd3fe2a25b488a66de2f05fdefc289e2b2780ae13b",
+      "roundtrip_exact": true,
+      "model_tensors_unchanged": true,
+      "url": "https://drive.google.com/file/d/1CBSqGumOh9afaiyE3ETrhe70zbZzjkBL/view"
+    }
+  },
+  "validation": "All exported tensors bitwise equal to original paper checkpoints; full runtime validation recorded separately.",
+  "compatible_code_commit": "ae654a848999718b59ac0ecfd1395e7a477c9f8c",
+  "folder_url": "https://drive.google.com/drive/folders/1HDrQqFihSU33Wr56KfxksulvA7dLaZEB",
+  "access_status": "Public sharing pending author permission; current links require access."
+}
