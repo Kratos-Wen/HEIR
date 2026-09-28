@@ -18,11 +18,13 @@ Yufan Chen<sup>1</sup>, Junwei Zheng<sup>5</sup>, Ruiping Liu<sup>1</sup>, Jiale
 
 **A benchmark for complete human–entity interactions, and CoRISP for predicting participant–role sets.**
 
-[Benchmark](#heir-benchmark) · [Method](#corisp) · [Results](#paper-results) · [Quick start](#quick-start) · [Reproduction](docs/REPRODUCTION.md) · [Citation](#citation)
+[Dataset](docs/DATASET.md) · [Benchmark](#heir-benchmark) · [Method](#corisp) · [Results](#paper-results) · [Quick start](#quick-start) · [Reproduction](docs/REPRODUCTION.md) · [Citation](#citation)
 
 </div>
 
 ## HEIR benchmark
+
+**Data:** [Hugging Face](https://huggingface.co/datasets/KratosWen/HEIR) · [Download and release status](docs/DATASET.md)
 
 Who participates in an action, and what function does each participant serve? **HEIR** represents a person–action event as a complete set of participants and their functional roles. It supports multiple participants with the same role and entities shared across events.
 
@@ -71,7 +73,7 @@ Role AP excludes `point`. Complete-set evaluation uses native role slots; Dual a
 
 ## What is included
 
-This is a source-code release. Dataset annotations, images, semantic prototypes, support tables and pretrained or trained weights are not included. The synthetic example and numerical tests run without these assets or a GPU.
+This is a source-code release. HEIR data is hosted separately on [Hugging Face](https://huggingface.co/datasets/KratosWen/HEIR); see [dataset release status](docs/DATASET.md). Dataset annotations, images, semantic prototypes, support tables and pretrained or trained weights are not included. The synthetic example and numerical tests run without these assets or a GPU.
 
 | Component | Entry point |
 | --- | --- |
@@ -114,6 +116,7 @@ V-COCO uses native role slots and evaluates complete slot assignments under Scen
 | Guide | Contents |
 | --- | --- |
 | [Installation](docs/INSTALLATION.md) | CPU tests, CUDA setup and extension build |
+| [Dataset](docs/DATASET.md) | HEIR release, download and checksum verification |
 | [Assets](docs/ASSETS.md) | Required local files and configuration |
 | [Training and Evaluation](docs/REPRODUCTION.md) | HEIR and V-COCO commands |
 | [Method](docs/METHOD.md) | Paper-to-code correspondence |

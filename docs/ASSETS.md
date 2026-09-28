@@ -1,6 +1,6 @@
 # Assets and local configuration
 
-The repository contains source and synthetic examples only. Supply local files you are authorized to use. [Required asset checksums](../configs/required_assets.json) identify the inputs expected by the released model integration.
+The repository contains source and synthetic examples only. HEIR is hosted separately on [Hugging Face](https://huggingface.co/datasets/KratosWen/HEIR); follow the [dataset release and download guide](DATASET.md). Supply local files you are authorized to use. [Required asset checksums](../configs/required_assets.json) identify the inputs expected by the released model integration.
 
 | Variable or argument | Required input |
 | --- | --- |
