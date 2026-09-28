@@ -2,7 +2,6 @@
   "gen-vlkt": {
     "url": "https://github.com/YueLiao/gen-vlkt",
     "commit": "191fc74e967d6965e9ae7b3a5d423db501f38c79",
-    "patch": "patches/gen-vlkt.patch",
     "verified_sha256": {
       "LICENSE": "f77f64d76ff2bc6053db2d0e0e8b3adb08f4206eee0f9002a6011915467a96e8",
       "README.md": "f1f67ff77955d53e40cfdf4238191f551af1e738a4f53ca4690729147dd7d9b9",
@@ -42,7 +41,7 @@
       "tools/covert_annot_for_official_eval.py": "f2554c6694e8e21143e25f99d82296fc315f9c095fd2ffe9ec980193ca93c865",
       "util/__init__.py": "23939c05151d07cc61878b7f3b0936987ee09e637caa4192c2e312992de3eb1c",
       "util/box_ops.py": "7002eff67758450b7ccf80718fdecf80d09a08efdd3b11ac70f7e57649514a03",
-      "util/misc.py": "fe1dbcc99763705b083f2898595e995b063288b4c1892ff2d31783c8c0467449",
+      "util/misc.py": "175c62a11b55083d2b43b8798019573b827689f37710517b199af919f12ab603",
       "util/plot_utils.py": "9204a93c7dee596c38a9675e9cbc80f919f95637760d14126f780e8169915655",
       "util/topk.py": "07c82960048fee970897adb27820c2f7284c2308533f7ffcb2d9ae66c7d11604"
     }

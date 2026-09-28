@@ -2,7 +2,6 @@
   "qpic": {
     "url": "https://github.com/hitachi-rd-cv/qpic",
     "commit": "257f3147a47e92fcfd98a675b39423eb4f9a5a55",
-    "patch": "patches/qpic.patch",
     "verified_sha256": {
       "LICENSE": "d91596b04bccba9bfa5853504737e6e7cf897abfc8c3fc3837d4cfae9eee448b",
       "README.md": "d57d709e1430c52fca7efc55c6481664b756f5dac4a6f8d6e8c3116904523087",
@@ -32,7 +31,7 @@
       "requirements.txt": "72160b54af934c4d618c7f61beb47196d74f0e0b5b8e111dfff86be56f3419f0",
       "util/__init__.py": "23939c05151d07cc61878b7f3b0936987ee09e637caa4192c2e312992de3eb1c",
       "util/box_ops.py": "7002eff67758450b7ccf80718fdecf80d09a08efdd3b11ac70f7e57649514a03",
-      "util/misc.py": "15211a09a485ec6a3767c5dc603f2434aad5ddb847f18924a2e752efe784b710",
+      "util/misc.py": "facee31783d43f8f6a7d662504b5debeb84cc40c633552b471bf7a2a92ca59fd",
       "util/plot_utils.py": "9204a93c7dee596c38a9675e9cbc80f919f95637760d14126f780e8169915655"
     }
   }

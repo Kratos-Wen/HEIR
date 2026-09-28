@@ -2,7 +2,7 @@
 
 MUREN released-checkpoint inference.
 
-This directory contains the V-COCO adapters as patches against pinned upstream commits (`patches/`, `sources.json`), a portable command runner and asset specifications. It does not contain upstream source code, datasets, checkpoints or prediction caches. `python baseline.py run sources` clones each upstream repository, checks out the pinned commit, initialises its pinned submodules where listed, applies the patch and verifies every file the release was tested with. Install the requirements of the corresponding implementation in `workspace/reference_repos/` in a dedicated environment; the upstream licenses apply to the checked-out source and to the patched files.
+This directory uses the official implementation at the upstream commit pinned in `sources.json`, unchanged, with a portable command runner and asset specifications. It does not contain upstream source code, datasets, checkpoints or prediction caches. `python baseline.py run sources` clones the official repository, checks out the pinned commit and verifies its files. Install the official requirements of that implementation in a dedicated environment; the official code expects the library versions listed by its authors.
 
 ## Commands
 

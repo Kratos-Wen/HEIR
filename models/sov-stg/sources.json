@@ -2,7 +2,6 @@
   "SOV-STG": {
     "url": "https://github.com/cjw2021/SOV-STG",
     "commit": "021bf1350aff91379a64da9bd1ec0cfe517cd02c",
-    "patch": "patches/SOV-STG.patch",
     "verified_sha256": {
       "README.md": "87789b93d8d8799258751c349a248548a2c74cad103e2c2913aabbdfc57c6509",
       "configs/sov-stg-s.sh": "02dfb027040104f8d8cc8f3f21c13c958074e94feaae90b124ce6421437e2ca4",
@@ -15,7 +14,7 @@
       "configs/vcoco_sov-stg-l_eval.sh": "3ba463be172c69bc740a9fd7274e27dd6c3b774b43898125e25969632e7adc33",
       "convert_parameters.py": "3ec1c542e14439c361f6d7eb9021f374b3bd7747837e5cb19347f094ec2ddb22",
       "datasets/__init__.py": "ea1b3ef3573f37f29c9db2231b384a9fe1dc8c9755b12cf6adf2989f628ef9a2",
-      "datasets/hico.py": "82ece24af14b3526e1afe86233d0dea5eb6928805f6aec6ec4d4ad09200016b4",
+      "datasets/hico.py": "839f21ad3b10f9c4b02922fe1e44990371ff7e7d3d1b091a0adb04e23d3654e8",
       "datasets/hico_eval.py": "5ede643f219a4aab77e254746ce58b1b9ea2600d459a33a38a6e12b68b105441",
       "datasets/transforms.py": "49badc3429439def02b1171a87be77bff50084075ba66d69488a59a6ada7264d",
       "datasets/vcoco.py": "702eca722f6711ab01f3211b0df7a7b275e486d32c36b7b902364ff79b8f9389",
@@ -63,7 +62,7 @@
       "util/collect_env.py": "33411ebbc47a41e8537241f824f4ed8cd5c8f622285910af2dde5d13734c9f38",
       "util/logger.py": "59857f503f26e7d1a1a8fe3539d3d5ef8237785f73d9a38ab2cc14cd7b600311",
       "util/misc.py": "4f5957e31275fe21af11592e4c3698349d641c07b680a64f6cf93a942a89537b",
-      "util/slconfig.py": "ad8d131d91259e04935c6869bf7fea93d01005ba5e714fb3a5a5427cfe7fee2a",
+      "util/slconfig.py": "61ebf54f307ecec6c86d1dbeb12e50ec55738049dd5ad216277208e9b47eef13",
       "util/topk.py": "64684a068ec5bda968b705c657acd10a0e7e0ed83938cee3e3e1cff2f467c857",
       "vsrl_eval.py": "be2b19683dec752397e6e1570b6ba9af8255ad70a89407aec8ca6f6d83a7f758"
     }
@@ -71,7 +70,6 @@
   "SOV-STG-VLA": {
     "url": "https://github.com/cjw2021/SOV-STG-VLA",
     "commit": "64db7ca320c2feb3872eb8648731b5a4e0630ccf",
-    "patch": "patches/SOV-STG-VLA.patch",
     "verified_sha256": {
       "README.md": "a11802e12ec6da35716b58ff18171e3648e958bc3c9c1f38ce4c9fc0bc1510d2",
       "configs/models/blip2/blip2_pretrain.yaml": "08b185d01ccdd77d9be803047e37ac7d098c42de7777c95444fb0b07c769e57d",
@@ -89,7 +87,7 @@
       "datasets_hoi/hico_text_label.py": "106b90a8eea070b71b3600a2afad64ea346ab2ed14d09a52e575a7ef0113302d",
       "datasets_hoi/static_hico.py": "f7b94844757a0a6135fb91ae6b11a962368e975433b7013162c8a058f9db06ee",
       "datasets_hoi/transforms.py": "0eb0eb7bd0a316c5c21dc9fb90aceca6bebb4b8dd97e0d57f5610a4d6d043f80",
-      "datasets_hoi/vcoco.py": "9bd11c878aac311101ff1b50af0d423c7183654097aef8f9c65ec6c4732e339c",
+      "datasets_hoi/vcoco.py": "993290f73c100c06374e5383d692b8cc10eb8accebd5e49c049a11f06f97c6cd",
       "datasets_hoi/vcoco_eval.py": "8b77631cbf4239e12fb52ec978d737dd7edf20c94c3e7048e3503fbf190fd611",
       "datasets_hoi/vcoco_text_label.py": "a9098a3118367a7939492e5b3cf3abf89ffeb1eddba2fc1debac604310be11b9",
       "engine.py": "208233fe431584c344b324ac09b03d0c30f16c0f2914d261458b1d7f22dc7d2c",
@@ -146,7 +144,7 @@
       "util/collect_env.py": "fd83ef472325dcd8b6f5a1e634e1b029f8db75923570133c67178dfc4cac8462",
       "util/logger.py": "735e40e43cb92ff150831e27f637cfa748f4b9d9eca752a0045a469c91a8feaf",
       "util/misc.py": "4f5957e31275fe21af11592e4c3698349d641c07b680a64f6cf93a942a89537b",
-      "util/slconfig.py": "4d3c8c7d76a6262ebc2ea1676bccac6e580ae37ec8a7b6cc67c9f9c5164a3f75",
+      "util/slconfig.py": "a5d064051779f699316db234513104cd40ecfa0db9b687b64c7a912e6783da15",
       "util/topk.py": "60037dc57eaeb486a59b76b5ee29f8831dc416c5db8ee06e553593ac3fbf3a62",
       "vsrl_eval.py": "a7d1937930ff450428d46265166d2b5052c47b5a91d8fc79793c2c58b6ddfd72"
     }

@@ -2,7 +2,6 @@
   "MUREN": {
     "url": "https://github.com/OreoChocolate/MUREN",
     "commit": "d7c8e63fad33eb0bd846dd36b3a8dbe536d8a39b",
-    "patch": "patches/MUREN.patch",
     "verified_sha256": {
       "README.md": "af3f2a8704349fffd0bbf81b1f85bc6952db54cbeceb86c2c858bc1ca95cb1ee",
       "datasets/__init__.py": "1c16cb1a645a9ecba11c0eae5f823880e90853404e83c182a186f5a361f6cd26",
@@ -15,7 +14,7 @@
       "engine.py": "fc743f3bb01d67dfea0f3de3a58802180ef1f8fd5649f16111449205218df6c7",
       "env.yaml": "128b3b47a519321eb07e4ec69f0b150871430735ab6e64b7468ce97625809bb2",
       "generate_vcoco_official.py": "fccad1a7a4384a089e345dae477b4c82b787c9296c3142d187c7661ebe5f8090",
-      "main.py": "0a2a265ec15945f523266edd0b13f1d2a4d72b7e692120ac0ae6916051d3d85e",
+      "main.py": "3467451c6e98665cf621dbf32de3388896b8972ffe3d7bf07168f7b84e74f6da",
       "models/__init__.py": "5ede07dbacf04be7a8a206f155d0646718e1a86446c83dab2df04f699472ca14",
       "models/backbone.py": "7591bdba9188d5b95966a3252808ec9d44de411788b82f86690f914390ae953e",
       "models/hoi.py": "20f25a04caeea0fb58f1886ec309d98a5276c6ea5575030ae3118ab454342191",

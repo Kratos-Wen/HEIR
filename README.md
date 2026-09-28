@@ -37,7 +37,7 @@ python baseline.py run qpic_r50-infer --output ./runs/qpic-r50
 python baseline.py run qpic_r50-score --output ./runs/qpic-r50
 ```
 
-Upstream source code is not included: `python baseline.py run sources` clones each upstream repository at the commit pinned in `sources.json`, applies the V-COCO adapters in `patches/` and verifies every file the release was tested with. Images, annotations, weights, prediction caches and external model assets are supplied separately. `assets.example.json` lists the asset keys; `baseline.json` specifies their relative mount points and model commands. Training commands retain their specified global world size. Use `--nnodes`, `--nproc-per-node`, `--node-rank` and `--master-addr` when launching a distributed recipe across nodes.
+Upstream source code is not included: `python baseline.py run sources` clones each upstream repository at the commit pinned in `sources.json`, applies the V-COCO adapters in `patches/` where the official code has none (PViC native export, SL-HOI adaptation) and verifies the checked-out files. All other baselines run the official code unchanged. Images, annotations, weights, prediction caches and external model assets are supplied separately. `assets.example.json` lists the asset keys; `baseline.json` specifies their relative mount points and model commands. Training commands retain their specified global world size. Use `--nnodes`, `--nproc-per-node`, `--node-rank` and `--master-addr` when launching a distributed recipe across nodes.
 
 ## Complete-set evaluation
 
