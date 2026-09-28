@@ -22,7 +22,7 @@ def test_prediction_example_uses_selected_checkpoint():
 
 def test_public_method_name_and_source_only_scope():
     readme = (ROOT / "README.md").read_text()
-    assert readme.startswith("# CoRISP\n")
+    assert readme.startswith("# HEIR: Learning Human-Entity Interactions with Functional Roles\n")
     assert "Compositional Role-aware Interaction Set Prediction" in readme
     assert "source-code release" in readme
     assert "weights are not included" in readme
