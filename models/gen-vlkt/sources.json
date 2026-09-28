@@ -1,0 +1,25 @@
+{
+  "gen-vlkt": {
+    "url": "https://github.com/YueLiao/gen-vlkt",
+    "commit": "191fc74e967d6965e9ae7b3a5d423db501f38c79",
+    "patch": "patches/gen-vlkt.patch",
+    "verified_sha256": {
+      "datasets/__init__.py": "e897948792acc34422dfe0d770c0b43fe556e4296a5599cfc3ae311e5cd4ba56",
+      "datasets/heir.py": "318f5cbf9e73f9ba736f74ebc56851c510b64135bf97d279501c16bffc0f73f7",
+      "datasets/heir_labels.py": "63e1922f93927eb99b2e4f28980b145d8505ba897fdc29b1a5a5c40603ce8abc",
+      "datasets/hico_eval_triplet.py": "b9daa378e813a07baf32eb412e933c89a515b51eb9325209572fd630e0bcc233",
+      "datasets/vcoco_eval.py": "fbcc4e23ae8b60d70d8f1d4db04969438255414f6ae62e7156b68ea82d3aa1f4",
+      "engine.py": "288743d1155acaa3f2b446a79982998173869011a0038688a331d7820a16fa61",
+      "main.py": "dd89b084cc546fe63eae8bf7d14923397b2d9c0cbced939981f0f9b9db13249b",
+      "models/gen_vlkt.py": "0d4113c73199d7232cc664281d15b45c76e02581eb39fdf8a4e35d3ea6ba1001",
+      "tools/build_heir_text_labels.py": "2f4fadf9653a90d0d73c330ab19433f5d904dd3adaffa3425809b079b0cc67b4",
+      "tools/convert_parameters.py": "80a8fd0c805df6f6b783d276fc1e5c7ad104aba1dca249bec15095ad74ca06ef",
+      "tools/export_heir_predictions.py": "1ba916995f7620f2b7618640518685d398df1b00e88f4a9b1e3a0c31643d23e5",
+      "util/misc.py": "fe1dbcc99763705b083f2898595e995b063288b4c1892ff2d31783c8c0467449"
+    }
+  },
+  "CLIP": {
+    "url": "https://github.com/openai/CLIP",
+    "commit": "d05afc436d78f1c48dc0dbf8e5980a9d471f35f6"
+  }
+}

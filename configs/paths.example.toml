@@ -1,0 +1,23 @@
+# Local paths for evaluate.py. Copy this file to configs/paths.toml (ignored by git) and fill it in.
+heir = "/path/to/HEIR"                    # vocabulary.json, annotations/{train,val,test}.json, images/
+heir_support = "/path/to/support.csv"     # action--noun--role support table (columns verb, role, noun)
+checkpoint_dir = "checkpoints"            # released checkpoints are downloaded to and read from here
+vcoco = "/path/to/v-coco"                # V-COCO configurations: official v-coco checkout with images and splits
+# repository = "/path/to/local/clone"    # optional: checkout source for the V-COCO baseline release
+
+[python]
+# Interpreter of each model family's environment (install the upstream requirements of models/<model>).
+default = "python"
+scorer = "python"                         # needs numpy and scipy
+# qpic = "/path/to/envs/qpic/bin/python"
+# muren = "/path/to/envs/muren/bin/python"
+# gen-vlkt = "/path/to/envs/gen-vlkt/bin/python"
+# rlipv2 = "/path/to/envs/rlipv2/bin/python"
+# sov-stg = "/path/to/envs/sov-stg/bin/python"
+
+[assets]
+# Inference assets besides HEIR, as listed in each configuration; sources are in models/<model>/README.md.
+# CLIP_VIT_B32 = "/path/to/ViT-B-32.pt"
+# ROBERTA_BASE = "/path/to/roberta-base"
+# BLIP2_PRETRAINED = "/path/to/blip2_pretrained.pth"
+# EVA_VIT_G = "/path/to/eva_vit_g.pth"

@@ -1,0 +1,7 @@
+name = "QPIC (ResNet-50)"
+model = "qpic"            # directory under models/
+variant = "qpic_r50"
+checkpoint = "qpic_r50_heir"   # entry in configs/checkpoints.toml
+python = "qpic"            # environment in configs/paths.toml [python]
+assets = []
+metrics = ["role", "hoi", "sets-topk", "sets-map"]

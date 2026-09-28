@@ -1,0 +1,16 @@
+{
+  "MUREN": {
+    "url": "https://github.com/OreoChocolate/MUREN",
+    "commit": "d7c8e63fad33eb0bd846dd36b3a8dbe536d8a39b",
+    "patch": "patches/MUREN.patch",
+    "verified_sha256": {
+      "datasets/__init__.py": "e897948792acc34422dfe0d770c0b43fe556e4296a5599cfc3ae311e5cd4ba56",
+      "datasets/heir.py": "8714fbafe3213bfb83c9bc4135afbc1447d33e06530e55ec21d9d9fa86275245",
+      "datasets/hico_eval.py": "d7e282cb564f2945184e53c1098b43899a0ca05daf48484d37113b3537f5cae2",
+      "engine.py": "dd3f92de4c3bda2c391eba1da893c6b9b2ed3d1e9cc96ead5910e233408d73a0",
+      "main.py": "27e92bade50860d8dddcf6e1179645ab2955b3d27b68be320068e160eafe99eb",
+      "tools/convert_detr_to_muren.py": "1134f7caf8e6a22fe2a691150dcdb18c33caa8ffc37a621d80494b3efc2d5e85",
+      "tools/export_heir_predictions.py": "73c00e70e5b7cc81dbf02c15fa7804ebcea5a76bbb5f0d405725e54998a94748"
+    }
+  }
+}

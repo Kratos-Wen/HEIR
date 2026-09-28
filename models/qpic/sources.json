@@ -1,0 +1,16 @@
+{
+  "qpic": {
+    "url": "https://github.com/hitachi-rd-cv/qpic",
+    "commit": "257f3147a47e92fcfd98a675b39423eb4f9a5a55",
+    "patch": "patches/qpic.patch",
+    "verified_sha256": {
+      "convert_parameters_heir.py": "538512164ca99b1ac6cc081139ce809dc710da97a4c0f28d88c84e73dfe67ce6",
+      "datasets/__init__.py": "2f60af6d1eec3de99a928e2ccf3779db40e63a96c85616175bc8720d3c087d31",
+      "datasets/heir.py": "e8bb8a64111d87cca0eede8c44ce82ddd64d85cfcc44b838da999a88bba489c0",
+      "engine.py": "3a6db01f5985bee62845a66f349a7f093681ce287772b986102e6b82bb649425",
+      "export_heir.py": "40204e0cb926fc2be9fe1e327f5e23cade5227745438e665bb12f489bb6b022e",
+      "main.py": "e57225c60f3e53cc5f929c9b44595b0676f7df4a426fe7881f959d237a20e33b",
+      "util/misc.py": "15211a09a485ec6a3767c5dc603f2434aad5ddb847f18924a2e752efe784b710"
+    }
+  }
+}

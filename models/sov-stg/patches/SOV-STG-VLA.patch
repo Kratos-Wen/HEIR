@@ -1,0 +1,832 @@
+diff --git a/configs/models/blip2/blip2_pretrain.yaml b/configs/models/blip2/blip2_pretrain.yaml
+index 0e6ac0c..b215e9c 100644
+--- a/configs/models/blip2/blip2_pretrain.yaml
++++ b/configs/models/blip2/blip2_pretrain.yaml
+@@ -7,7 +7,7 @@ model:
+   arch: pretrain
+   load_finetuned: False
+ 
+-  pretrained: "https://storage.googleapis.com/sfr-vision-language-research/LAVIS/models/BLIP2/blip2_pretrained.pth"
++  pretrained: "weights/blip2_pretrained.pth"
+   finetuned: ""
+ 
+   # vit encoder
+diff --git a/datasets_hoi/__init__.py b/datasets_hoi/__init__.py
+index dbcd65e..92609ad 100644
+--- a/datasets_hoi/__init__.py
++++ b/datasets_hoi/__init__.py
+@@ -15,6 +15,7 @@ import torch.utils.data
+ 
+ from .hico import build as build_hico
+ from .vcoco import build as build_vcoco
++from .heir import build as build_heir  # HEIR adaptation
+ 
+ 
+ def build_dataset(image_set, args):
+@@ -22,4 +23,6 @@ def build_dataset(image_set, args):
+         return build_hico(image_set, args)
+     if args.dataset_file == 'vcoco':
+         return build_vcoco(image_set, args)
++    if args.dataset_file == 'heir':
++        return build_heir(image_set, args)
+     raise ValueError(f'dataset {args.dataset_file} not supported')
+diff --git a/datasets_hoi/heir.py b/datasets_hoi/heir.py
+new file mode 100644
+index 0000000..2a25443
+--- /dev/null
++++ b/datasets_hoi/heir.py
+@@ -0,0 +1,172 @@
++# ------------------------------------------------------------------------
++# HEIR v1.0 dataset for SOV-STG-VLA (HICO-DET-style loader).
++# Mirrors datasets_hoi/hico.py (HICODetection) line by line:
++#   * same two-stage augmentations (make_hico_transforms: geometric/colour stage
++#     -> img_0, then normalize); the BLIP-2 advisor input `clip_inputs` is the CLIP
++#     preprocess of img_0 exactly as in hico.py;
++#   * same truncation of box lists to num_queries, same multi-label pair targets
++#     (obj_labels, verb_labels, hoi_labels, sub_boxes, obj_boxes), which also feed
++#     the STG denoising queries;
++#   * hoi_labels index the triplet list of datasets_hoi/heir_text_label_sem10072.py
++#     (9,764 representable (interaction, object) triplets of the 10,072 semantic
++#     inventory; identical file to the GEN-VLKT-S run). As in hico.py, a training
++#     relation whose triplet is not in the list is skipped.
++# Differences to hico.py:
++#   * ids are already contiguous: objects 0..436 (person = 0), interactions
++#     0..224 (one per (verb, role) pair) -> no _valid_obj_ids/_valid_verb_ids remap;
++#   * val/test targets carry the HEIR image_id (str) for the JSONL export;
++#   * no correct_mat: the VLA HICO evaluator (hico_eval_triplet.py) does not apply
++#     one either; the triplet list is the output support.
++# ------------------------------------------------------------------------
++import json
++from pathlib import Path
++
++import torch
++import torch.utils.data
++from PIL import Image
++import clip
++
++from datasets_hoi.hico import make_hico_transforms
++from datasets_hoi.heir_text_label_sem10072 import heir_text_label
++
++NUM_OBJ = 437
++NUM_INTER = 225
++
++
++class HEIRDetection(torch.utils.data.Dataset):
++
++    def __init__(self, img_set, img_folder, anno_file, transforms, num_queries, args):
++        self.img_set = img_set
++        self.img_folder = Path(img_folder)
++        with open(anno_file, 'r') as f:
++            self.annotations = json.load(f)
++        self._transforms = transforms
++        self.num_queries = num_queries
++        self.num_verbs = NUM_INTER
++
++        self.text_label_dict = heir_text_label
++        self.text_label_ids = list(self.text_label_dict.keys())
++        self.text_label_index = {k: i for i, k in enumerate(self.text_label_ids)}
++        self.use_clip = True if "CLIP" in args.arch or "BLIP" in args.arch else False
++        if self.use_clip:
++            device = "cuda" if torch.cuda.is_available() else "cpu"
++            _, self.clip_preprocess = clip.load(args.clip_model, device)
++
++        if img_set == 'train':
++            self.ids = []
++            for idx, img_anno in enumerate(self.annotations):
++                for hoi in img_anno['hoi_annotation']:
++                    if hoi['subject_id'] >= len(img_anno['annotations']) or hoi['object_id'] >= len(img_anno['annotations']):
++                        break
++                else:
++                    self.ids.append(idx)
++        else:
++            self.ids = list(range(len(self.annotations)))
++
++    def __len__(self):
++        return len(self.ids)
++
++    def __getitem__(self, idx):
++        img_anno = self.annotations[self.ids[idx]]
++        img = Image.open(self.img_folder / img_anno['file_name']).convert('RGB')
++        w, h = img.size
++
++        annos = img_anno['annotations']
++        if self.img_set == 'train' and len(annos) > self.num_queries:
++            annos = annos[:self.num_queries]  # as hico.py
++
++        boxes = torch.as_tensor([obj['bbox'] for obj in annos], dtype=torch.float32).reshape(-1, 4)
++
++        target = {}
++        target['orig_size'] = torch.as_tensor([int(h), int(w)])
++        target['size'] = torch.as_tensor([int(h), int(w)])
++        if self.img_set == 'train':
++            classes = torch.tensor([(i, obj['category_id']) for i, obj in enumerate(annos)],
++                                   dtype=torch.int64).reshape(-1, 2)
++            boxes[:, 0::2].clamp_(min=0, max=w)
++            boxes[:, 1::2].clamp_(min=0, max=h)
++            keep = (boxes[:, 3] > boxes[:, 1]) & (boxes[:, 2] > boxes[:, 0])
++            boxes = boxes[keep]
++            classes = classes[keep]
++
++            target['boxes'] = boxes
++            target['labels'] = classes
++            target['iscrowd'] = torch.zeros((boxes.shape[0],), dtype=torch.int64)
++            target['area'] = (boxes[:, 2] - boxes[:, 0]) * (boxes[:, 3] - boxes[:, 1])
++
++            if self._transforms is not None:
++                img_0, target_0 = self._transforms[0](img, target)
++                img, target = self._transforms[1](img_0, target_0)
++
++            if self.use_clip:
++                target['clip_inputs'] = self.clip_preprocess(img_0)
++
++            kept_box_indices = [int(label[0]) for label in target['labels']]
++            target['labels'] = target['labels'][:, 1]
++
++            obj_labels, verb_labels, hoi_labels, sub_boxes, obj_boxes = [], [], [], [], []
++            sub_obj_pairs = []
++            for hoi in img_anno['hoi_annotation']:
++                if hoi['subject_id'] not in kept_box_indices or hoi['object_id'] not in kept_box_indices:
++                    continue
++                trip = (hoi['category_id'], int(target['labels'][kept_box_indices.index(hoi['object_id'])]))
++                if trip not in self.text_label_index:
++                    continue
++                pair = (hoi['subject_id'], hoi['object_id'])
++                if pair in sub_obj_pairs:
++                    k = sub_obj_pairs.index(pair)
++                    verb_labels[k][hoi['category_id']] = 1
++                    hoi_labels[k][self.text_label_index[trip]] = 1
++                else:
++                    sub_obj_pairs.append(pair)
++                    obj_labels.append(target['labels'][kept_box_indices.index(hoi['object_id'])])
++                    verb_label = [0] * self.num_verbs
++                    verb_label[hoi['category_id']] = 1
++                    hoi_label = [0] * len(self.text_label_ids)
++                    hoi_label[self.text_label_index[trip]] = 1
++                    verb_labels.append(verb_label)
++                    hoi_labels.append(hoi_label)
++                    sub_boxes.append(target['boxes'][kept_box_indices.index(hoi['subject_id'])])
++                    obj_boxes.append(target['boxes'][kept_box_indices.index(hoi['object_id'])])
++
++            target['filename'] = img_anno['file_name']
++            if len(sub_obj_pairs) == 0:
++                target['obj_labels'] = torch.zeros((0,), dtype=torch.int64)
++                target['verb_labels'] = torch.zeros((0, self.num_verbs), dtype=torch.float32)
++                target['hoi_labels'] = torch.zeros((0, len(self.text_label_ids)), dtype=torch.float32)
++                target['sub_boxes'] = torch.zeros((0, 4), dtype=torch.float32)
++                target['obj_boxes'] = torch.zeros((0, 4), dtype=torch.float32)
++            else:
++                target['obj_labels'] = torch.stack(obj_labels)
++                target['verb_labels'] = torch.as_tensor(verb_labels, dtype=torch.float32)
++                target['hoi_labels'] = torch.as_tensor(hoi_labels, dtype=torch.float32)
++                target['sub_boxes'] = torch.stack(sub_boxes)
++                target['obj_boxes'] = torch.stack(obj_boxes)
++        else:
++            target['boxes'] = boxes
++            target['labels'] = torch.tensor([obj['category_id'] for obj in annos], dtype=torch.int64)
++            target['id'] = idx
++            target['file_name'] = img_anno['file_name']
++            target['image_id'] = str(img_anno['image_id'])
++
++            if self._transforms is not None:
++                img_0, _ = self._transforms[0](img, None)
++                img, _ = self._transforms[1](img_0, None)
++            if self.use_clip:
++                target['clip_inputs'] = self.clip_preprocess(img_0)
++
++            hois = [(hoi['subject_id'], hoi['object_id'], hoi['category_id']) for hoi in img_anno['hoi_annotation']]
++            target['hois'] = torch.as_tensor(hois, dtype=torch.int64).reshape(-1, 3)
++
++        return img, target
++
++
++def build(image_set, args):
++    root = Path(args.hoi_path)
++    assert root.exists(), f'provided HOI path {root} does not exist'
++    assert args.num_obj_classes == NUM_OBJ and args.num_verb_classes == NUM_INTER
++    split = {'train': 'train', 'val': 'val', 'test': 'test'}[image_set]
++    anno_file = root / 'annotations' / f'{split}_heir.json'
++    return HEIRDetection(image_set if image_set == 'train' else 'val', root / 'images', anno_file,
++                         transforms=make_hico_transforms('train' if image_set == 'train' else 'val'),
++                         num_queries=args.num_queries, args=args)
+diff --git a/datasets_hoi/vcoco.py b/datasets_hoi/vcoco.py
+index f30f0be..df4d2bb 100644
+--- a/datasets_hoi/vcoco.py
++++ b/datasets_hoi/vcoco.py
+@@ -6,7 +6,7 @@ import numpy as np
+ import torch
+ import torch.utils.data
+ 
+-import datasets.transforms as T
++import datasets_hoi.transforms as T  # HEIR: upstream typo (no `datasets` package in this repo)
+ import clip
+ from datasets_hoi.vcoco_text_label import *
+ 
+diff --git a/engine.py b/engine.py
+index a7c1115..57d320e 100644
+--- a/engine.py
++++ b/engine.py
+@@ -29,6 +29,7 @@ import copy
+ from loguru import logger
+ import numpy as np
+ import math
++import contextlib
+ 
+ 
+ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
+@@ -49,10 +50,24 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
+     if not wo_class_error:
+         metric_logger.add_meter('class_error', utils.SmoothedValue(window_size=1, fmt='{value:.2f}'))
+     header = 'Epoch: [{}]'.format(epoch)
+-    print_freq = 10
++    print_freq = getattr(args, 'print_freq', 10)
++    # HEIR: gradient accumulation (global batch = world_size x batch_size x accum_steps).
++    # Each micro-batch loss is divided by K; DDP gradient sync only on the last micro-batch;
++    # clipping + optimizer step on the accumulated gradient. A trailing incomplete group
++    # at the end of an epoch is dropped.
++    K = max(1, getattr(args, 'accum_steps', 1))
++    max_iters = getattr(args, 'max_iters_per_epoch', 0)
++    n_micro = len(data_loader)
++    if max_iters:
++        n_micro = min(n_micro, max_iters)
++    n_micro_used = (n_micro // K) * K
++    micro = 0
++    optimizer.zero_grad()
+ 
+     _cnt = 0
+     for samples, targets in metric_logger.log_every(data_loader, print_freq, header):
++        if _cnt >= n_micro_used:
++            break
+ 
+         samples = samples.to(device)
+         targets = [{k: v.to(device) for k, v in t.items() if k != 'filename' and k != 'raw_img'} for t in targets]
+@@ -99,41 +114,36 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
+             # run.log(loss_dict_reduced_unscaled)
+             run.log({'loss': loss_value, 'plain_loss': plain_loss_value, 'dn_loss': dn_loss_value})
+ 
+-        bug_count = 0
+         if not math.isfinite(loss_value):
+-            print("Loss is {}, stopping training".format(loss_value))
++            # upstream skips the batch; loss_value is all-reduced, so every rank skips together.
++            # HEIR: also discard the partially accumulated group.
++            print("Loss is {}, skipping batch".format(loss_value))
+             print(loss_dict_reduced)
+             optimizer.zero_grad()
+-            bug_count = bug_count + 1
+-            if bug_count > 5:
+-                sys.exit(1)
++            micro -= micro % K
++            _cnt += 1
+             continue
+-        # amp backward function
+-        if args.amp:
+-            optimizer.zero_grad()
+-            scaler.scale(losses).backward()
+-            if max_norm > 0:
+-                scaler.unscale_(optimizer)
+-                torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm)
+-            scaler.step(optimizer)
+-            scaler.update()
+-        else:
+-            # original backward function
++        micro += 1
++        _cnt += 1
++        last_micro = (micro % K == 0)
++        sync_ctx = model.no_sync() if (K > 1 and not last_micro and hasattr(model, 'no_sync')) else contextlib.nullcontext()
++        with sync_ctx:
++            if args.amp:
++                scaler.scale(losses / K).backward()
++            else:
++                (losses / K).backward()
++        if last_micro:
++            if args.amp:
++                if max_norm > 0:
++                    scaler.unscale_(optimizer)
++                    torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm)
++                scaler.step(optimizer)
++                scaler.update()
++            else:
++                if max_norm > 0:
++                    torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm)
++                optimizer.step()
+             optimizer.zero_grad()
+-            losses.backward()
+-
+-            # used_parameters = [name for name, param in model.named_parameters() if param.grad is not None]
+-            # print(used_parameters)
+-            # print("---------")
+-            # unused_parameters = [name for name, param in model.named_parameters() if param.grad is None and param.requires_grad]
+-            # print(unused_parameters)
+-            # print("---------")
+-            # import sys
+-            # sys.exit(0)
+-
+-            if max_norm > 0:
+-                torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm)
+-            optimizer.step()
+         metric_logger.update(loss=loss_value, plain_loss=plain_loss_value, dn_loss=dn_loss_value)
+         if 'obj_class_error' in loss_dict_reduced:
+             metric_logger.update(obj_class_error=loss_dict_reduced['obj_class_error'])
+@@ -145,7 +155,6 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
+         metric_logger.update(lr=optimizer.param_groups[0]["lr"])
+         metric_logger.update(dn_dy_weight=dn_dy_coef)
+         metric_logger.update(dn_drop=dn_drop_weight)
+-        _cnt += 1
+         if args.debug:
+             if _cnt % 15 == 0:
+                 print("BREAK!"*5)
+diff --git a/export_heir.py b/export_heir.py
+new file mode 100644
+index 0000000..e9eca16
+--- /dev/null
++++ b/export_heir.py
+@@ -0,0 +1,165 @@
++"""Export SOV-STG-VLA predictions on HEIR val/test as JSONL for the shared HEIR scorer.
++
++Post-processing = SOV-STG-VLA's HICO-DET protocol (engine.evaluate_hoi -> PostProcessHOI ->
++datasets_hoi/hico_eval_triplet.HICOEvaluator), unchanged:
++  * PostProcessHOI: hoi_scores = sigmoid of the triplet logits [Q, T] (T = 9,764 inventory triplets);
++    boxes cxcywh -> xyxy scaled to the original image size; obj label = argmax softmax (kept for the NMS key).
++  * HICOEvaluator: score = hoi_scores only (the obj-score product and the correct_mat mask are commented
++    out upstream); every (query, triplet) is a candidate; top-100 per image (util.topk.top_k = sorted
++    descending), then triplet pairwise NMS (use_nms True, nms_thresh 0.7, nms_alpha 1.0, nms_beta 0.5),
++    grouped by (subject argmax label, object argmax label, triplet id) as upstream.
++  * The triplet id defines the interaction (category_id) and the object noun of the prediction.
++Output line: {"image_id", "boxes" (original pixels, xyxy), "labels", "box_scores",
++"hois": [{"subject_id","object_id","category_id","score"}]}; one line per split image in split order;
++images beyond --limit get empty predictions. box_scores: softmax prob of the triplet's noun for object boxes;
++subject boxes get 1.0 (no subject classifier).
++"""
++import argparse
++import json
++import os
++import sys
++import time
++from pathlib import Path
++
++import numpy as np
++import torch
++
++sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
++
++import util.misc as utils  # noqa: E402
++from datasets_hoi import build_dataset  # noqa: E402
++from datasets_hoi.heir_text_label_sem10072 import heir_text_label  # noqa: E402
++from models import build_model  # noqa: E402
++
++MAX_HOIS = 100
++
++
++def pairwise_nms(subs, objs, scores, thres, alpha, beta):
++    # verbatim logic of HICOEvaluator.pairwise_nms (hico_eval_triplet.py)
++    sx1, sy1, sx2, sy2 = subs[:, 0], subs[:, 1], subs[:, 2], subs[:, 3]
++    ox1, oy1, ox2, oy2 = objs[:, 0], objs[:, 1], objs[:, 2], objs[:, 3]
++    sub_areas = (sx2 - sx1 + 1) * (sy2 - sy1 + 1)
++    obj_areas = (ox2 - ox1 + 1) * (oy2 - oy1 + 1)
++    order = scores.argsort()[::-1]
++    keep = []
++    while order.size > 0:
++        i = order[0]
++        keep.append(i)
++        sw = np.maximum(0.0, np.minimum(sx2[i], sx2[order[1:]]) - np.maximum(sx1[i], sx1[order[1:]]) + 1)
++        sh = np.maximum(0.0, np.minimum(sy2[i], sy2[order[1:]]) - np.maximum(sy1[i], sy1[order[1:]]) + 1)
++        sub_inter = sw * sh
++        sub_union = sub_areas[i] + sub_areas[order[1:]] - sub_inter
++        ow = np.maximum(0.0, np.minimum(ox2[i], ox2[order[1:]]) - np.maximum(ox1[i], ox1[order[1:]]) + 1)
++        oh = np.maximum(0.0, np.minimum(oy2[i], oy2[order[1:]]) - np.maximum(oy1[i], oy1[order[1:]]) + 1)
++        obj_inter = ow * oh
++        obj_union = obj_areas[i] + obj_areas[order[1:]] - obj_inter
++        ovr = np.power(sub_inter / sub_union, alpha) * np.power(obj_inter / obj_union, beta)
++        order = order[np.where(ovr <= thres)[0] + 1]
++    return keep
++
++
++def image_record(image_id, res, trip_inter, trip_obj, args):
++    hoi = res['hoi_scores'].numpy().astype(np.float64)   # [Q, T]
++    obj = res['obj_scores'].numpy()                       # [Q, C] softmax
++    boxes = res['boxes'].numpy()                          # [2Q, 4]: subjects then objects
++    labels = res['labels'].numpy()                        # [2Q] argmax labels (subject = 0)
++    nq = hoi.shape[0]
++    flat = hoi.ravel()
++    top = np.argsort(-flat, kind='stable')[:MAX_HOIS]     # == top_k (descending), first index on ties
++    q_idx, t_idx = top // hoi.shape[1], top % hoi.shape[1]
++    s_top = flat[top]
++    keep_all = list(range(len(top)))
++    if args.use_nms and len(top):
++        keep_all, groups = [], {}
++        for k in range(len(top)):
++            groups.setdefault((int(labels[q_idx[k]]), int(labels[nq + q_idx[k]]), int(t_idx[k])), []).append(k)
++        for idx in groups.values():
++            idx = np.array(idx)
++            kk = pairwise_nms(boxes[q_idx[idx]], boxes[nq + q_idx[idx]], s_top[idx], args.nms_thresh, args.nms_alpha, args.nms_beta)
++            keep_all.extend(idx[kk].tolist())
++        keep_all = sorted(keep_all)
++    out_boxes, out_labels, box_scores, node, hois = [], [], [], {}, []
++
++    def get_node(key, box, label, bscore):
++        if key not in node:
++            node[key] = len(out_boxes)
++            out_boxes.append([round(float(v), 2) for v in box])
++            out_labels.append(int(label))
++            box_scores.append(float(min(1.0, max(0.0, bscore))))
++        return node[key]
++
++    for i in keep_all:
++        q, t = int(q_idx[i]), int(t_idx[i])
++        c = int(trip_obj[t])
++        sid = get_node(('s', q), boxes[q], 0, 1.0)
++        oid = get_node(('o', q, c), boxes[nq + q], c, obj[q, c])
++        hois.append({'subject_id': sid, 'object_id': oid, 'category_id': int(trip_inter[t]), 'score': float(s_top[i])})
++    return {'image_id': image_id, 'boxes': out_boxes, 'labels': out_labels, 'box_scores': box_scores, 'hois': hois}
++
++
++def main():
++    ap = argparse.ArgumentParser()
++    ap.add_argument('--checkpoint', required=True)
++    ap.add_argument('--split', choices=('val', 'test'), required=True)
++    ap.add_argument('--output', required=True)
++    ap.add_argument('--hoi_path', required=True)
++    ap.add_argument('--batch_size', type=int, default=4)
++    ap.add_argument('--num_workers', type=int, default=4)
++    ap.add_argument('--limit', type=int, default=0, help='only run the first N images (others empty)')
++    a = ap.parse_args()
++
++    ckpt = torch.load(a.checkpoint, map_location='cpu', weights_only=False)
++    args = ckpt['args']
++    args.hoi_path = a.hoi_path
++    args.distributed = False
++    args.device = 'cuda'
++    args.eval = True
++    device = torch.device('cuda')
++    torch.manual_seed(args.seed)
++
++    model, _, postprocessors = build_model(args)
++    info = model.load_state_dict(ckpt['model'], strict=False)
++    assert not info.unexpected_keys, info.unexpected_keys
++    # only the frozen BLIP-2 advisor (not saved in the checkpoint) may be missing
++    assert all(k.startswith('blip2_model.') for k in info.missing_keys), [k for k in info.missing_keys if not k.startswith('blip2_model.')]
++    print('load: epoch', ckpt.get('epoch'), 'missing (blip2 only):', len(info.missing_keys), flush=True)
++    model.to(device).eval()
++
++    keys = list(heir_text_label.keys())
++    trip_inter = np.array([k[0] for k in keys])
++    trip_obj = np.array([k[1] for k in keys])
++
++    ds = build_dataset(image_set=a.split, args=args)
++    n = len(ds) if not a.limit else min(a.limit, len(ds))
++    sub = torch.utils.data.Subset(ds, list(range(n)))
++    loader = torch.utils.data.DataLoader(sub, batch_size=a.batch_size, shuffle=False, drop_last=False,
++                                         collate_fn=utils.collate_fn, num_workers=a.num_workers)
++    records = []
++    t0 = time.time()
++    with torch.no_grad():
++        for bi, (samples, targets) in enumerate(loader):
++            samples = samples.to(device)
++            targets_t = [{k: v.to(device) for k, v in t.items() if k not in ('file_name', 'id', 'img_id', 'image_id')} for t in targets]
++            outputs, _ = model(samples, dn_args=(targets_t, 0,))  # as engine.evaluate_hoi
++            orig_sizes = torch.stack([t['orig_size'] for t in targets]).to(device)
++            results = postprocessors['hoi'](outputs, orig_sizes)
++            for t, res in zip(targets, results):
++                records.append(image_record(t['image_id'], res, trip_inter, trip_obj, args))
++            if bi % 100 == 0:
++                print(f'[{a.split}] {bi * a.batch_size}/{n} images, {time.time() - t0:.1f}s', flush=True)
++
++    all_ids = [str(x['image_id']) for x in ds.annotations]
++    assert [r['image_id'] for r in records] == all_ids[:n]
++    out = Path(a.output)
++    out.parent.mkdir(parents=True, exist_ok=True)
++    with open(out, 'w') as f:
++        for r in records:
++            f.write(json.dumps(r) + '\n')
++        for iid in all_ids[n:]:
++            f.write(json.dumps({'image_id': iid, 'boxes': [], 'labels': [], 'box_scores': [], 'hois': []}) + '\n')
++    print('wrote', out, len(all_ids), 'lines;', n, 'with predictions;', sum(len(r['hois']) for r in records), 'hois')
++    print(f'export done in {time.time() - t0:.1f}s ({n / max(1e-6, time.time() - t0):.2f} img/s)')
++
++
++if __name__ == '__main__':
++    main()
+diff --git a/main.py b/main.py
+index 321d93a..59c8431 100644
+--- a/main.py
++++ b/main.py
+@@ -25,7 +25,10 @@ from engine import evaluate_hoi, train_one_epoch
+ from models import build_model
+ from util.slconfig import SLConfig
+ import json
+-import wandb
++try:
++    import wandb
++except ImportError:  # HEIR: wandb not installed / not used
++    wandb = None
+ 
+ 
+ def build_model_main(args):
+@@ -182,7 +185,7 @@ def main(args):
+ 
+ 
+     if args.frozen_weights is not None:
+-        checkpoint = torch.load(args.frozen_weights, map_location='cpu')
++        checkpoint = torch.load(args.frozen_weights, map_location='cpu', weights_only=False)
+         model_without_ddp.detr.load_state_dict(checkpoint['model'])
+ 
+     output_dir = Path(args.output_dir)
+@@ -195,8 +198,10 @@ def main(args):
+             checkpoint = torch.hub.load_state_dict_from_url(
+                 args.resume, map_location='cpu', check_hash=True)
+         else:
+-            checkpoint = torch.load(args.resume, map_location='cpu')
+-        model_without_ddp.load_state_dict(checkpoint['model'], strict=False)
++            checkpoint = torch.load(args.resume, map_location='cpu', weights_only=False)
++        info = model_without_ddp.load_state_dict(checkpoint['model'], strict=False)
++        if utils.get_rank() == 0:
++            logger.info('resume load: missing {} unexpected {}'.format(info.missing_keys, info.unexpected_keys))
+         if not args.eval and 'optimizer' in checkpoint and 'lr_scheduler' in checkpoint and 'epoch' in checkpoint:
+             optimizer.load_state_dict(checkpoint['optimizer'])
+             lr_scheduler.load_state_dict(checkpoint['lr_scheduler'])
+@@ -206,8 +211,18 @@ def main(args):
+                 for param_group in optimizer.param_groups:
+                     param_group['lr'] = param_group['lr'] * 0.1
+ 
++    # HEIR: model-only init from the converted DN-Deformable-DETR checkpoint (upstream passes the
++    # same converted file via --resume; it has no optimizer/epoch so only the model is loaded).
++    if not args.resume and args.init_checkpoint:
++        init_sd = torch.load(args.init_checkpoint, map_location='cpu', weights_only=False)['model']
++        info = model_without_ddp.load_state_dict(init_sd, strict=False)
++        if utils.get_rank() == 0:
++            logger.info('init from {}\nmissing keys ({}): {}\nunexpected keys ({}): {}'.format(
++                args.init_checkpoint, len(info.missing_keys), info.missing_keys,
++                len(info.unexpected_keys), info.unexpected_keys))
++
+     if not args.resume and args.pretrain_model_path:
+-        checkpoint = torch.load(args.pretrain_model_path, map_location='cpu')['model']
++        checkpoint = torch.load(args.pretrain_model_path, map_location='cpu', weights_only=False)['model']
+         model_without_ddp.load_state_dict(checkpoint, strict=True)
+ 
+     if args.eval:
+@@ -240,6 +255,24 @@ def main(args):
+                     'epoch': epoch,
+                     'args': args,
+                 }, checkpoint_path)
++        if args.skip_epoch_eval:
++            # HEIR: no in-loop evaluation / best-checkpoint selection; save last + final epoch.
++            if args.output_dir != '':
++                ck = {'model': model_without_ddp.state_dict(), 'optimizer': optimizer.state_dict(),
++                      'lr_scheduler': lr_scheduler.state_dict(), 'epoch': epoch, 'args': args}
++                if utils.is_main_process():
++                    tmp = output_dir / 'checkpoint_last.pth.tmp'
++                    torch.save(ck, tmp)
++                    os.replace(tmp, output_dir / 'checkpoint_last.pth')
++                    if epoch + 1 == args.epochs:
++                        torch.save(ck, output_dir / f'checkpoint{epoch:04}.pth')
++            log_stats = {**{f'{k}': v for k, v in train_stats.items()}, 'epoch': epoch, 'n_parameters': n_parameters}
++            if args.output_dir and utils.is_main_process():
++                with (output_dir / "log.txt").open("a") as f:
++                    f.write(json.dumps(log_stats) + "\n")
++            if args.distributed:
++                torch.distributed.barrier()
++            continue
+         test_stats = evaluate_hoi(args.dataset_file, model, postprocessors, data_loader_val, args.subject_category_id, device, output_dir, epoch, args)
+         if run:
+             log_dict = test_stats.copy()
+diff --git a/models/detector/SOV_STG_VLA_BLIP2_HOI.py b/models/detector/SOV_STG_VLA_BLIP2_HOI.py
+index 2a84ec6..4f42259 100644
+--- a/models/detector/SOV_STG_VLA_BLIP2_HOI.py
++++ b/models/detector/SOV_STG_VLA_BLIP2_HOI.py
+@@ -31,6 +31,7 @@ import copy
+ ###########################################################################
+ from datasets_hoi.hico_text_label import hico_text_label, hico_obj_text_label, hico_unseen_index
+ from datasets_hoi.vcoco_text_label import vcoco_hoi_text_label, vcoco_obj_text_label
++from datasets_hoi.heir_text_label_sem10072 import heir_text_label, heir_obj_text_label  # HEIR adaptation
+ from datasets_hoi.static_hico import HOI_IDX_TO_ACT_IDX
+ 
+ def _sigmoid(x):
+@@ -97,6 +98,11 @@ class SOV_STG_VLA_BLIP2_HOI(nn.Module):
+             hoi_text_label = vcoco_hoi_text_label
+             obj_text_label = vcoco_obj_text_label
+             unseen_index = None
++        elif self.args.dataset_file == 'heir':
++            # HEIR: 9,764 representable triplets of the 10,072 semantic inventory (same list as GEN-VLKT-S)
++            hoi_text_label = heir_text_label
++            obj_text_label = heir_obj_text_label
++            unseen_index = None
+         
+         clip_label, v_linear_proj_weight, v_linear_proj_text_weight, hoi_text, train_clip_label = \
+             self.init_classifier_with_BLIP2(hoi_text_label, unseen_index, args.no_clip_cls_init)
+diff --git a/models/encoder_decoder/BLIP2/base_model.py b/models/encoder_decoder/BLIP2/base_model.py
+index 838299f..a339f3a 100644
+--- a/models/encoder_decoder/BLIP2/base_model.py
++++ b/models/encoder_decoder/BLIP2/base_model.py
+@@ -39,7 +39,7 @@ class BaseModel(nn.Module):
+             )
+             checkpoint = torch.load(cached_file, map_location="cpu")
+         elif os.path.isfile(url_or_filename):
+-            checkpoint = torch.load(url_or_filename, map_location="cpu")
++            checkpoint = torch.load(url_or_filename, map_location="cpu", weights_only=False)
+         else:
+             raise RuntimeError("checkpoint url or path is invalid")
+ 
+diff --git a/models/encoder_decoder/BLIP2/clip_vit.py b/models/encoder_decoder/BLIP2/clip_vit.py
+index 2541ed3..c763418 100644
+--- a/models/encoder_decoder/BLIP2/clip_vit.py
++++ b/models/encoder_decoder/BLIP2/clip_vit.py
+@@ -7,7 +7,10 @@ import torch
+ import torch.nn.functional as F
+ from torch import nn
+ 
+-from fairscale.nn.checkpoint.checkpoint_activations import checkpoint_wrapper
++try:
++    from fairscale.nn.checkpoint.checkpoint_activations import checkpoint_wrapper
++except ImportError:  # HEIR: fairscale not installed; clip_L (the only user) is not used by blip2_feature_extractor/pretrain
++    checkpoint_wrapper = None
+ 
+ from .eva_vit import convert_weights_to_fp16
+ from .dist_utils import download_cached_file
+diff --git a/models/encoder_decoder/BLIP2/eva_vit.py b/models/encoder_decoder/BLIP2/eva_vit.py
+index 0e146cf..3ead5eb 100644
+--- a/models/encoder_decoder/BLIP2/eva_vit.py
++++ b/models/encoder_decoder/BLIP2/eva_vit.py
+@@ -439,11 +439,9 @@ def create_eva_vit_g(img_size=224,drop_path_rate=0.4,use_checkpoint=False,precis
+         norm_layer=partial(nn.LayerNorm, eps=1e-6),
+         use_checkpoint=use_checkpoint,
+     )  
+-    url = "https://storage.googleapis.com/sfr-vision-language-research/LAVIS/models/BLIP2/eva_vit_g.pth"
+-    cached_file = download_cached_file(
+-        url, check_hash=False, progress=True
+-    )
+-    state_dict = torch.load(cached_file, map_location="cpu")    
++    # HEIR: pinned local copy of the official eva_vit_g.pth (sha256 99d2bb36...), no download.
++    cached_file = __import__('os').environ.get('BLIP2_EVA_VIT_G', 'weights/eva_vit_g.pth')
++    state_dict = torch.load(cached_file, map_location="cpu", weights_only=False)    
+     interpolate_pos_embed(model,state_dict)
+     
+     incompatible_keys = model.load_state_dict(state_dict, strict=False)
+diff --git a/option.py b/option.py
+index 90cba38..6a5897e 100644
+--- a/option.py
++++ b/option.py
+@@ -19,7 +19,7 @@ class Options:
+             'in xxx=yyy format will be merged into config file.')
+ 
+         # dataset parameters
+-        parser.add_argument('--dataset_file', default='hico',choices=['hico', 'vcoco'])
++        parser.add_argument('--dataset_file', default='hico',choices=['hico', 'vcoco', 'heir'])
+         parser.add_argument('--dataset_root', default='GEN', help='')
+         parser.add_argument('--hoi_path', default='./data/hico_det', type=str)
+         parser.add_argument('--diff_path', default='./data/hico_diffusion', type=str)
+@@ -66,6 +66,13 @@ class Options:
+         parser.add_argument("--local_rank", type=int, help='local rank for DistributedDataParallel')
+         parser.add_argument('--amp', action='store_true',
+                             help="Train with mixed precision")
++        # HEIR adaptation (same flags as the SOV-STG HEIR run)
++        parser.add_argument('--init_checkpoint', type=str, default='',
++                            help='model-only init (converted DN-Deformable-DETR); upstream passes it via --resume')
++        parser.add_argument('--accum_steps', default=1, type=int, help='gradient accumulation micro-batches per step')
++        parser.add_argument('--max_iters_per_epoch', default=0, type=int, help='smoke tests only (micro-batches)')
++        parser.add_argument('--print_freq', default=10, type=int)
++        parser.add_argument('--skip_epoch_eval', action='store_true', help='no in-loop evaluation')
+         
+         ###########################################################################
+         # HOI 600 Prediction
+diff --git a/slconfig/sov-stg-s-vla-blip2_heir.py b/slconfig/sov-stg-s-vla-blip2_heir.py
+new file mode 100644
+index 0000000..8bec8a8
+--- /dev/null
++++ b/slconfig/sov-stg-s-vla-blip2_heir.py
+@@ -0,0 +1,5 @@
++_base_ = ['sov-stg-s-vla-blip2_hoi.py']
++# HEIR: identical to upstream slconfig/sov-stg-s-vla-blip2_hoi.py (SOV-STG-VLA-S: R50, dec 3, 64 queries,
++# 15 epochs, lr 1e-4 / backbone 1e-5, lr_drop 10, DN/STG settings). Only the CLIP preprocess model is given as a
++# local file instead of the download name 'ViT-B/32' (same weights; clip.load accepts a path).
++clip_model = 'weights/ViT-B-32.pt'
+diff --git a/tools/build_heir_text_labels.py b/tools/build_heir_text_labels.py
+new file mode 100644
+index 0000000..3a56ffb
+--- /dev/null
++++ b/tools/build_heir_text_labels.py
+@@ -0,0 +1,126 @@
++"""Build GEN-VLKT text labels for HEIR v1.0 (analogue of datasets/hico_text_label.py).
++
++Triplets = every (interaction, object) combination that occurs in train_heir.json
++(HICO's 600-triplet analogue). Checked to equal the nonzero entries of corre_heir.npy.
++Combinations that never occur in train do not exist as classifier rows.
++
++Prompt template (GEN-VLKT style "a photo of a person <verb-ing> <a/an object>", extended with the role):
++  target      : a photo of a person {ving} {a obj}
++  instrument  : a photo of a person {ving} using {a obj} as instrument
++  support     : a photo of a person {ving} on {a obj} as support
++  source      : a photo of a person {ving} from {a obj} as source
++  destination : a photo of a person {ving} to {a obj} as destination
++  constraint  : a photo of a person {ving} with {a obj} as constraint
++{ving} = gerund (+ target-only preposition for a few verbs, e.g. "looking at", as HICO does);
++{obj}  = HEIR noun id with '_' -> ' '.
++Object prompts: "a photo of {a obj}" for the 437 objects + "a photo of nothing" (no-object class).
++
++Writes datasets/heir_text_label.py.
++
++Semantic-inventory protocol (--corre .../semantic10072/corre_semantic10072.npy --out datasets/heir_text_label_sem10072.py):
++triplets = the nonzero (object, interaction) entries of the given corre matrix (9,764 representable combinations of the
++10,072-triple dataset-level inventory), including combinations without train positives (like HICO's 600 in the
++zero-shot settings); every train triplet must be inside it.
++"""
++import argparse
++import json
++from collections import OrderedDict
++from pathlib import Path
++
++import numpy as np
++
++ROOT = Path(__import__('os').environ.get('HEIR_HICO_ANNOTATIONS', 'data/heir_hico/annotations'))
++OUT = Path(__file__).resolve().parents[1] / 'datasets' / 'heir_text_label.py'
++
++GERUND = {
++    'applaud': 'applauding', 'assist': 'assisting', 'attach': 'attaching', 'block': 'blocking', 'blow': 'blowing',
++    'brush': 'brushing', 'carry': 'carrying', 'catch': 'catching', 'climb': 'climbing', 'close': 'closing',
++    'cover': 'covering', 'cut': 'cutting', 'defibrillate': 'defibrillating', 'dig': 'digging', 'draw': 'drawing',
++    'dribble': 'dribbling', 'drill': 'drilling', 'drink': 'drinking', 'drive': 'driving', 'eat': 'eating',
++    'enter': 'entering', 'exit': 'exiting', 'fasten': 'fastening', 'feed': 'feeding', 'fold': 'folding',
++    'grasp': 'grasping', 'grind': 'grinding', 'guide': 'guiding', 'hammer': 'hammering', 'hand_over': 'handing over',
++    'high_five': 'high-fiving', 'hit': 'hitting', 'hold': 'holding', 'hug': 'hugging', 'ignite': 'igniting',
++    'inject': 'injecting', 'insert': 'inserting', 'inspect': 'inspecting', 'jump': 'jumping', 'kick': 'kicking',
++    'kiss': 'kissing', 'lean': 'leaning', 'lick': 'licking', 'lie': 'lying', 'lift': 'lifting', 'listen': 'listening',
++    'look': 'looking', 'measure': 'measuring', 'open': 'opening', 'paint': 'painting', 'peel': 'peeling',
++    'photograph': 'photographing', 'pipette': 'pipetting', 'place': 'placing', 'play': 'playing', 'plug': 'plugging',
++    'point': 'pointing', 'pour': 'pouring', 'press': 'pressing', 'pull': 'pulling', 'push': 'pushing',
++    'put_on': 'putting on', 'reach': 'reaching', 'read': 'reading', 'record': 'recording', 'remove': 'removing',
++    'restrain': 'restraining', 'ride': 'riding', 'rotate': 'rotating', 'row': 'rowing', 'sand': 'sanding',
++    'saw': 'sawing', 'scoop': 'scooping', 'scrape': 'scraping', 'shake_hands': 'shaking hands', 'show': 'showing',
++    'signal': 'signaling', 'sit': 'sitting', 'slide': 'sliding', 'smell': 'smelling', 'smoke': 'smoking',
++    'solder': 'soldering', 'spray': 'spraying', 'spread': 'spreading', 'squeeze': 'squeezing', 'stack': 'stacking',
++    'stand': 'standing', 'stir': 'stirring', 'straddle': 'straddling', 'sweep': 'sweeping', 'swing': 'swinging',
++    'swipe': 'swiping', 'take_off': 'taking off', 'talk': 'talking', 'throw': 'throwing', 'touch': 'touching',
++    'turn': 'turning', 'type': 'typing', 'unfold': 'unfolding', 'wash': 'washing', 'wear': 'wearing',
++    'weld': 'welding', 'wipe': 'wiping', 'wrap': 'wrapping', 'write': 'writing',
++}
++# Intransitive verbs need a preposition before the target (HICO does the same, e.g. "looking at").
++TARGET_PREP = {'listen': 'to', 'look': 'at', 'point': 'at', 'signal': 'to', 'talk': 'to', 'reach': 'for',
++               'shake_hands': 'with', 'high_five': '', 'applaud': ''}
++ROLE_TEMPLATE = {
++    'target': 'a photo of a person {ving} {obj}',
++    'instrument': 'a photo of a person {ving} using {obj} as instrument',
++    'support': 'a photo of a person {ving} on {obj} as support',
++    'source': 'a photo of a person {ving} from {obj} as source',
++    'destination': 'a photo of a person {ving} to {obj} as destination',
++    'constraint': 'a photo of a person {ving} with {obj} as constraint',
++}
++
++
++def with_article(noun):
++    noun = noun.replace('_', ' ')
++    return ('an ' if noun[0] in 'aeiou' else 'a ') + noun
++
++
++def main():
++    ap = argparse.ArgumentParser()
++    ap.add_argument('--root', type=Path, default=ROOT)
++    ap.add_argument('--corre', type=Path, default=None, help='triplet inventory; default = train co-occurrence')
++    ap.add_argument('--out', type=Path, default=OUT)
++    a = ap.parse_args()
++    root, out = a.root, a.out
++    classes = json.loads((root / 'classes.json').read_text())
++    objects, inter_vr = classes['objects'], classes['interaction_verb_role']
++    assert len(objects) == 437 and len(inter_vr) == 225 and classes['person_id'] == 0
++    train = json.loads((root / 'train_heir.json').read_text())
++    seen = set()
++    for img in train:
++        for h in img['hoi_annotation']:
++            seen.add((h['category_id'], img['annotations'][h['object_id']]['category_id']))
++    if a.corre is None:
++        corre = np.load(root / 'corre_heir.npy')
++        assert seen == {(int(i), int(o)) for o, i in zip(*np.nonzero(corre))}, 'train triplets != corre_heir.npy'
++        triplets = sorted(seen)
++    else:
++        corre = np.load(a.corre)
++        assert corre.shape == (437, 225)
++        triplets = sorted((int(i), int(o)) for o, i in zip(*np.nonzero(corre)))
++        assert seen <= set(triplets), 'train triplets outside the inventory: %s' % sorted(seen - set(triplets))[:10]
++        print('inventory triplets', len(triplets), '; with train positives', len(seen))
++    labels = OrderedDict()
++    for inter_id, obj_id in triplets:
++        verb, role = inter_vr[inter_id]
++        ving = GERUND[verb]
++        if role == 'target' and TARGET_PREP.get(verb):
++            ving = ving + ' ' + TARGET_PREP[verb]
++        labels[(inter_id, obj_id)] = ROLE_TEMPLATE[role].format(ving=ving, obj=with_article(objects[obj_id]))
++    obj_labels = [(i, 'a photo of ' + with_article(o)) for i, o in enumerate(objects)]
++    obj_labels.append((len(objects), 'a photo of nothing'))
++    with out.open('w') as f:
++        f.write('# Generated by tools/build_heir_text_labels.py -- do not edit.\n')
++        f.write('# source: %s ; key = (HEIR interaction id 0..224, HEIR object id 0..436); %d triplets.\n' % (a.corre or 'train co-occurrence', len(labels)))
++        f.write('heir_text_label = {\n')
++        for k, v in labels.items():
++            f.write('    %r: %r,\n' % (k, v))
++        f.write('}\n\nheir_obj_text_label = [\n')
++        for k, v in obj_labels:
++            f.write('    (%d, %r),\n' % (k, v))
++        f.write(']\n')
++    print('wrote', out, len(labels), 'triplets;', len(obj_labels), 'object prompts')
++    for k in list(labels)[:5] + list(labels)[-5:]:
++        print(k, labels[k])
++
++
++if __name__ == '__main__':
++    main()

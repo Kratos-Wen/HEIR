@@ -1,0 +1,1054 @@
+{
+  "assets": {
+    "BLIP2_PRETRAINED": {
+      "mounts": [
+        [
+          "workspace/reference_repos/SOV-STG-VLA/weights/blip2_pretrained.pth",
+          ""
+        ]
+      ],
+      "sha256": {
+        "workspace/reference_repos/SOV-STG-VLA/weights/blip2_pretrained.pth": "f31f96e4a97ce9ac7a140ea1961b8a871822ae1cd0a23f0f1122fbefd70db9f0"
+      }
+    },
+    "CLIP_VIT_B32": {
+      "mounts": [
+        [
+          "workspace/reference_repos/SOV-STG-VLA/weights/ViT-B-32.pt",
+          ""
+        ]
+      ],
+      "sha256": {
+        "workspace/reference_repos/SOV-STG-VLA/weights/ViT-B-32.pt": "40d365715913c9da98579312b702a82c18be219cc2a73407c4526f58eba950af"
+      }
+    },
+    "DN_DAB_DEFORMABLE_DETR_R101": {
+      "mounts": [
+        [
+          "assets/dndetr/dn_dab_deformable_detr_r101.pth",
+          ""
+        ]
+      ],
+      "sha256": {
+        "assets/dndetr/dn_dab_deformable_detr_r101.pth": "6a64b7b6e21589159aff76c46ae8a379665e6608ffea7a95d92f4e3b1a691336"
+      }
+    },
+    "DN_DAB_DEFORMABLE_DETR_SWIN_L": {
+      "mounts": [
+        [
+          "assets/dndetr/dn_dab_deformable_detr_swin_large.pth",
+          ""
+        ]
+      ],
+      "sha256": {
+        "assets/dndetr/dn_dab_deformable_detr_swin_large.pth": "74637094568369bccd775efcca0467168515a5dfb9e8b9d9a0f42b88b47a2f14"
+      }
+    },
+    "DN_DEFORMABLE_DETR_R50": {
+      "mounts": [
+        [
+          "assets/dndetr/converted_dn_deformable_detr_r50_50ep.pth",
+          ""
+        ]
+      ],
+      "sha256": {
+        "assets/dndetr/converted_dn_deformable_detr_r50_50ep.pth": "6b7ff178954eafa78ff5654ed9d04ecf30929a84d0f0bcba13c9308816c7bc91"
+      }
+    },
+    "EVA_VIT_G": {
+      "mounts": [
+        [
+          "workspace/reference_repos/SOV-STG-VLA/weights/eva_vit_g.pth",
+          ""
+        ]
+      ],
+      "sha256": {
+        "workspace/reference_repos/SOV-STG-VLA/weights/eva_vit_g.pth": "99d2bb36c6b52c94fe6e2e12373afb27de57ae81378c3d8c53bf0e83b0f4275f"
+      }
+    },
+    "HEIR": {
+      "mounts": [
+        [
+          "data/heir",
+          ""
+        ]
+      ],
+      "sha256": {}
+    },
+    "HEIR_SUPPORT": {
+      "mounts": [
+        [
+          "data/heir_support.csv",
+          ""
+        ]
+      ],
+      "sha256": {}
+    }
+  },
+  "commands": {
+    "sources": {
+      "argv": [
+        "{python}",
+        "{root}/workspace/fetch_sources.py"
+      ],
+      "assets": [],
+      "cwd": "{root}/workspace",
+      "distributed": false,
+      "run_name": "sources",
+      "world_size": 1,
+      "pythonpath": [
+        "workspace"
+      ]
+    },
+    "sov_stg_s-prepare": {
+      "argv": [
+        "{python}",
+        "{root}/workspace/heir/tools/convert_heir_to_hico.py",
+        "--heir-root",
+        "{root}/data/heir",
+        "--out",
+        "{output}/heir_hico"
+      ],
+      "assets": [
+        "HEIR"
+      ],
+      "cwd": "{root}/workspace",
+      "distributed": false,
+      "run_name": "sov_stg_s",
+      "world_size": 1,
+      "pythonpath": [
+        "workspace/heir/scorer"
+      ]
+    },
+    "sov_stg_s-support": {
+      "argv": [
+        "{python}",
+        "{root}/workspace/heir/tools/build_support_mask.py",
+        "--support-csv",
+        "{root}/data/heir_support.csv",
+        "--classes",
+        "{output}/heir_hico/annotations/classes.json",
+        "--out",
+        "{output}/support_mask.npy"
+      ],
+      "assets": [
+        "HEIR_SUPPORT"
+      ],
+      "cwd": "{root}/workspace",
+      "distributed": false,
+      "run_name": "sov_stg_s",
+      "world_size": 1,
+      "pythonpath": [
+        "workspace/heir/scorer"
+      ]
+    },
+    "sov_stg_s-init": {
+      "argv": [
+        "{python}",
+        "convert_parameters_heir.py",
+        "--load_path",
+        "{root}/assets/dndetr/converted_dn_deformable_detr_r50_50ep.pth",
+        "--save_path",
+        "{output}/init.pth"
+      ],
+      "assets": [
+        "DN_DEFORMABLE_DETR_R50"
+      ],
+      "cwd": "{root}/workspace/reference_repos/SOV-STG",
+      "distributed": false,
+      "run_name": "sov_stg_s",
+      "world_size": 1
+    },
+    "sov_stg_s-train": {
+      "argv": [
+        "{python}",
+        "main.py",
+        "--dataset_file",
+        "heir",
+        "--hoi_path",
+        "{output}/heir_hico",
+        "--num_obj_classes",
+        "437",
+        "--num_verb_classes",
+        "225",
+        "--subject_category_id",
+        "0",
+        "--batch_size",
+        "4",
+        "--accum_steps",
+        "4",
+        "--num_workers",
+        "8",
+        "--output_dir",
+        "{output}/train",
+        "--skip_epoch_eval",
+        "--init_checkpoint",
+        "{output}/init.pth",
+        "-c",
+        "slconfig/sov-stg-s.py"
+      ],
+      "assets": [],
+      "cwd": "{root}/workspace/reference_repos/SOV-STG",
+      "distributed": true,
+      "run_name": "sov_stg_s",
+      "world_size": 2
+    },
+    "sov_stg_s-export": {
+      "argv": [
+        "{python}",
+        "export_heir.py",
+        "--checkpoint",
+        "{output}/train/checkpoint0029.pth",
+        "--split",
+        "test",
+        "--hoi_path",
+        "{output}/heir_hico",
+        "--correct_mat_path",
+        "{output}/support_mask.npy",
+        "--output",
+        "{output}/test_predictions.jsonl"
+      ],
+      "assets": [],
+      "cwd": "{root}/workspace/reference_repos/SOV-STG",
+      "distributed": false,
+      "run_name": "sov_stg_s",
+      "world_size": 1
+    },
+    "sov_stg_s-score-role": {
+      "argv": [
+        "{python}",
+        "{root}/workspace/heir/scorer/evaluate_heir_predictions.py",
+        "--heir-root",
+        "{root}/data/heir",
+        "--classes",
+        "{output}/heir_hico/annotations/classes.json",
+        "--split",
+        "test",
+        "--predictions",
+        "{output}/test_predictions.jsonl",
+        "--output-dir",
+        "{output}/role"
+      ],
+      "assets": [
+        "HEIR"
+      ],
+      "cwd": "{root}/workspace",
+      "distributed": false,
+      "run_name": "sov_stg_s",
+      "world_size": 1,
+      "pythonpath": [
+        "workspace/heir/scorer"
+      ]
+    },
+    "sov_stg_s-score-hoi": {
+      "argv": [
+        "{python}",
+        "{root}/workspace/heir/scorer/evaluate_heir_predictions.py",
+        "--heir-root",
+        "{root}/data/heir",
+        "--classes",
+        "{output}/heir_hico/annotations/classes.json",
+        "--split",
+        "test",
+        "--predictions",
+        "{output}/test_predictions.jsonl",
+        "--hoi",
+        "--output-dir",
+        "{output}/hoi"
+      ],
+      "assets": [
+        "HEIR"
+      ],
+      "cwd": "{root}/workspace",
+      "distributed": false,
+      "run_name": "sov_stg_s",
+      "world_size": 1,
+      "pythonpath": [
+        "workspace/heir/scorer"
+      ]
+    },
+    "sov_stg_s-score-sets-topk": {
+      "argv": [
+        "{python}",
+        "{root}/workspace/heir/scorer/evaluate_heir_sets.py",
+        "--heir-root",
+        "{root}/data/heir",
+        "--classes",
+        "{output}/heir_hico/annotations/classes.json",
+        "--split",
+        "test",
+        "--predictions",
+        "{output}/test_predictions.jsonl",
+        "--max-sets",
+        "100",
+        "--construction",
+        "top-k",
+        "--output-dir",
+        "{output}/sets_topk"
+      ],
+      "assets": [
+        "HEIR"
+      ],
+      "cwd": "{root}/workspace",
+      "distributed": false,
+      "run_name": "sov_stg_s",
+      "world_size": 1,
+      "pythonpath": [
+        "workspace/heir/scorer"
+      ]
+    },
+    "sov_stg_s-score-sets-map": {
+      "argv": [
+        "{python}",
+        "{root}/workspace/heir/scorer/evaluate_heir_sets.py",
+        "--heir-root",
+        "{root}/data/heir",
+        "--classes",
+        "{output}/heir_hico/annotations/classes.json",
+        "--split",
+        "test",
+        "--predictions",
+        "{output}/test_predictions.jsonl",
+        "--max-sets",
+        "100",
+        "--construction",
+        "map",
+        "--output-dir",
+        "{output}/sets_map"
+      ],
+      "assets": [
+        "HEIR"
+      ],
+      "cwd": "{root}/workspace",
+      "distributed": false,
+      "run_name": "sov_stg_s",
+      "world_size": 1,
+      "pythonpath": [
+        "workspace/heir/scorer"
+      ]
+    },
+    "sov_stg_l-prepare": {
+      "argv": [
+        "{python}",
+        "{root}/workspace/heir/tools/convert_heir_to_hico.py",
+        "--heir-root",
+        "{root}/data/heir",
+        "--out",
+        "{output}/heir_hico"
+      ],
+      "assets": [
+        "HEIR"
+      ],
+      "cwd": "{root}/workspace",
+      "distributed": false,
+      "run_name": "sov_stg_l",
+      "world_size": 1,
+      "pythonpath": [
+        "workspace/heir/scorer"
+      ]
+    },
+    "sov_stg_l-support": {
+      "argv": [
+        "{python}",
+        "{root}/workspace/heir/tools/build_support_mask.py",
+        "--support-csv",
+        "{root}/data/heir_support.csv",
+        "--classes",
+        "{output}/heir_hico/annotations/classes.json",
+        "--out",
+        "{output}/support_mask.npy"
+      ],
+      "assets": [
+        "HEIR_SUPPORT"
+      ],
+      "cwd": "{root}/workspace",
+      "distributed": false,
+      "run_name": "sov_stg_l",
+      "world_size": 1,
+      "pythonpath": [
+        "workspace/heir/scorer"
+      ]
+    },
+    "sov_stg_l-init": {
+      "argv": [
+        "{python}",
+        "convert_parameters_heir.py",
+        "--from_dndetr",
+        "--dec_n_points",
+        "4",
+        "--load_path",
+        "{root}/assets/dndetr/dn_dab_deformable_detr_r101.pth",
+        "--save_path",
+        "{output}/init.pth"
+      ],
+      "assets": [
+        "DN_DAB_DEFORMABLE_DETR_R101"
+      ],
+      "cwd": "{root}/workspace/reference_repos/SOV-STG",
+      "distributed": false,
+      "run_name": "sov_stg_l",
+      "world_size": 1
+    },
+    "sov_stg_l-train": {
+      "argv": [
+        "{python}",
+        "main.py",
+        "--dataset_file",
+        "heir",
+        "--hoi_path",
+        "{output}/heir_hico",
+        "--num_obj_classes",
+        "437",
+        "--num_verb_classes",
+        "225",
+        "--subject_category_id",
+        "0",
+        "--batch_size",
+        "4",
+        "--accum_steps",
+        "2",
+        "--num_workers",
+        "8",
+        "--output_dir",
+        "{output}/train",
+        "--skip_epoch_eval",
+        "--init_checkpoint",
+        "{output}/init.pth",
+        "-c",
+        "slconfig/heir-sov-stg-l-r101.py"
+      ],
+      "assets": [],
+      "cwd": "{root}/workspace/reference_repos/SOV-STG",
+      "distributed": true,
+      "run_name": "sov_stg_l",
+      "world_size": 4
+    },
+    "sov_stg_l-export": {
+      "argv": [
+        "{python}",
+        "export_heir.py",
+        "--checkpoint",
+        "{output}/train/checkpoint0029.pth",
+        "--split",
+        "test",
+        "--hoi_path",
+        "{output}/heir_hico",
+        "--correct_mat_path",
+        "{output}/support_mask.npy",
+        "--output",
+        "{output}/test_predictions.jsonl"
+      ],
+      "assets": [],
+      "cwd": "{root}/workspace/reference_repos/SOV-STG",
+      "distributed": false,
+      "run_name": "sov_stg_l",
+      "world_size": 1
+    },
+    "sov_stg_l-score-role": {
+      "argv": [
+        "{python}",
+        "{root}/workspace/heir/scorer/evaluate_heir_predictions.py",
+        "--heir-root",
+        "{root}/data/heir",
+        "--classes",
+        "{output}/heir_hico/annotations/classes.json",
+        "--split",
+        "test",
+        "--predictions",
+        "{output}/test_predictions.jsonl",
+        "--output-dir",
+        "{output}/role"
+      ],
+      "assets": [
+        "HEIR"
+      ],
+      "cwd": "{root}/workspace",
+      "distributed": false,
+      "run_name": "sov_stg_l",
+      "world_size": 1,
+      "pythonpath": [
+        "workspace/heir/scorer"
+      ]
+    },
+    "sov_stg_l-score-hoi": {
+      "argv": [
+        "{python}",
+        "{root}/workspace/heir/scorer/evaluate_heir_predictions.py",
+        "--heir-root",
+        "{root}/data/heir",
+        "--classes",
+        "{output}/heir_hico/annotations/classes.json",
+        "--split",
+        "test",
+        "--predictions",
+        "{output}/test_predictions.jsonl",
+        "--hoi",
+        "--output-dir",
+        "{output}/hoi"
+      ],
+      "assets": [
+        "HEIR"
+      ],
+      "cwd": "{root}/workspace",
+      "distributed": false,
+      "run_name": "sov_stg_l",
+      "world_size": 1,
+      "pythonpath": [
+        "workspace/heir/scorer"
+      ]
+    },
+    "sov_stg_l-score-sets-topk": {
+      "argv": [
+        "{python}",
+        "{root}/workspace/heir/scorer/evaluate_heir_sets.py",
+        "--heir-root",
+        "{root}/data/heir",
+        "--classes",
+        "{output}/heir_hico/annotations/classes.json",
+        "--split",
+        "test",
+        "--predictions",
+        "{output}/test_predictions.jsonl",
+        "--max-sets",
+        "100",
+        "--construction",
+        "top-k",
+        "--output-dir",
+        "{output}/sets_topk"
+      ],
+      "assets": [
+        "HEIR"
+      ],
+      "cwd": "{root}/workspace",
+      "distributed": false,
+      "run_name": "sov_stg_l",
+      "world_size": 1,
+      "pythonpath": [
+        "workspace/heir/scorer"
+      ]
+    },
+    "sov_stg_l-score-sets-map": {
+      "argv": [
+        "{python}",
+        "{root}/workspace/heir/scorer/evaluate_heir_sets.py",
+        "--heir-root",
+        "{root}/data/heir",
+        "--classes",
+        "{output}/heir_hico/annotations/classes.json",
+        "--split",
+        "test",
+        "--predictions",
+        "{output}/test_predictions.jsonl",
+        "--max-sets",
+        "100",
+        "--construction",
+        "map",
+        "--output-dir",
+        "{output}/sets_map"
+      ],
+      "assets": [
+        "HEIR"
+      ],
+      "cwd": "{root}/workspace",
+      "distributed": false,
+      "run_name": "sov_stg_l",
+      "world_size": 1,
+      "pythonpath": [
+        "workspace/heir/scorer"
+      ]
+    },
+    "sov_stg_swinl-prepare": {
+      "argv": [
+        "{python}",
+        "{root}/workspace/heir/tools/convert_heir_to_hico.py",
+        "--heir-root",
+        "{root}/data/heir",
+        "--out",
+        "{output}/heir_hico"
+      ],
+      "assets": [
+        "HEIR"
+      ],
+      "cwd": "{root}/workspace",
+      "distributed": false,
+      "run_name": "sov_stg_swinl",
+      "world_size": 1,
+      "pythonpath": [
+        "workspace/heir/scorer"
+      ]
+    },
+    "sov_stg_swinl-support": {
+      "argv": [
+        "{python}",
+        "{root}/workspace/heir/tools/build_support_mask.py",
+        "--support-csv",
+        "{root}/data/heir_support.csv",
+        "--classes",
+        "{output}/heir_hico/annotations/classes.json",
+        "--out",
+        "{output}/support_mask.npy"
+      ],
+      "assets": [
+        "HEIR_SUPPORT"
+      ],
+      "cwd": "{root}/workspace",
+      "distributed": false,
+      "run_name": "sov_stg_swinl",
+      "world_size": 1,
+      "pythonpath": [
+        "workspace/heir/scorer"
+      ]
+    },
+    "sov_stg_swinl-init": {
+      "argv": [
+        "{python}",
+        "convert_parameters_heir.py",
+        "--from_dndetr",
+        "--dec_n_points",
+        "8",
+        "--load_path",
+        "{root}/assets/dndetr/dn_dab_deformable_detr_swin_large.pth",
+        "--save_path",
+        "{output}/init.pth"
+      ],
+      "assets": [
+        "DN_DAB_DEFORMABLE_DETR_SWIN_L"
+      ],
+      "cwd": "{root}/workspace/reference_repos/SOV-STG",
+      "distributed": false,
+      "run_name": "sov_stg_swinl",
+      "world_size": 1
+    },
+    "sov_stg_swinl-train": {
+      "argv": [
+        "{python}",
+        "main.py",
+        "--dataset_file",
+        "heir",
+        "--hoi_path",
+        "{output}/heir_hico",
+        "--num_obj_classes",
+        "437",
+        "--num_verb_classes",
+        "225",
+        "--subject_category_id",
+        "0",
+        "--batch_size",
+        "2",
+        "--accum_steps",
+        "4",
+        "--num_workers",
+        "8",
+        "--output_dir",
+        "{output}/train",
+        "--skip_epoch_eval",
+        "--init_checkpoint",
+        "{output}/init.pth",
+        "-c",
+        "slconfig/sov-stg-swin_l.py"
+      ],
+      "assets": [],
+      "cwd": "{root}/workspace/reference_repos/SOV-STG",
+      "distributed": true,
+      "run_name": "sov_stg_swinl",
+      "world_size": 2
+    },
+    "sov_stg_swinl-export": {
+      "argv": [
+        "{python}",
+        "export_heir.py",
+        "--checkpoint",
+        "{output}/train/checkpoint0029.pth",
+        "--split",
+        "test",
+        "--hoi_path",
+        "{output}/heir_hico",
+        "--correct_mat_path",
+        "{output}/support_mask.npy",
+        "--output",
+        "{output}/test_predictions.jsonl"
+      ],
+      "assets": [],
+      "cwd": "{root}/workspace/reference_repos/SOV-STG",
+      "distributed": false,
+      "run_name": "sov_stg_swinl",
+      "world_size": 1
+    },
+    "sov_stg_swinl-score-role": {
+      "argv": [
+        "{python}",
+        "{root}/workspace/heir/scorer/evaluate_heir_predictions.py",
+        "--heir-root",
+        "{root}/data/heir",
+        "--classes",
+        "{output}/heir_hico/annotations/classes.json",
+        "--split",
+        "test",
+        "--predictions",
+        "{output}/test_predictions.jsonl",
+        "--output-dir",
+        "{output}/role"
+      ],
+      "assets": [
+        "HEIR"
+      ],
+      "cwd": "{root}/workspace",
+      "distributed": false,
+      "run_name": "sov_stg_swinl",
+      "world_size": 1,
+      "pythonpath": [
+        "workspace/heir/scorer"
+      ]
+    },
+    "sov_stg_swinl-score-hoi": {
+      "argv": [
+        "{python}",
+        "{root}/workspace/heir/scorer/evaluate_heir_predictions.py",
+        "--heir-root",
+        "{root}/data/heir",
+        "--classes",
+        "{output}/heir_hico/annotations/classes.json",
+        "--split",
+        "test",
+        "--predictions",
+        "{output}/test_predictions.jsonl",
+        "--hoi",
+        "--output-dir",
+        "{output}/hoi"
+      ],
+      "assets": [
+        "HEIR"
+      ],
+      "cwd": "{root}/workspace",
+      "distributed": false,
+      "run_name": "sov_stg_swinl",
+      "world_size": 1,
+      "pythonpath": [
+        "workspace/heir/scorer"
+      ]
+    },
+    "sov_stg_swinl-score-sets-topk": {
+      "argv": [
+        "{python}",
+        "{root}/workspace/heir/scorer/evaluate_heir_sets.py",
+        "--heir-root",
+        "{root}/data/heir",
+        "--classes",
+        "{output}/heir_hico/annotations/classes.json",
+        "--split",
+        "test",
+        "--predictions",
+        "{output}/test_predictions.jsonl",
+        "--max-sets",
+        "100",
+        "--construction",
+        "top-k",
+        "--output-dir",
+        "{output}/sets_topk"
+      ],
+      "assets": [
+        "HEIR"
+      ],
+      "cwd": "{root}/workspace",
+      "distributed": false,
+      "run_name": "sov_stg_swinl",
+      "world_size": 1,
+      "pythonpath": [
+        "workspace/heir/scorer"
+      ]
+    },
+    "sov_stg_swinl-score-sets-map": {
+      "argv": [
+        "{python}",
+        "{root}/workspace/heir/scorer/evaluate_heir_sets.py",
+        "--heir-root",
+        "{root}/data/heir",
+        "--classes",
+        "{output}/heir_hico/annotations/classes.json",
+        "--split",
+        "test",
+        "--predictions",
+        "{output}/test_predictions.jsonl",
+        "--max-sets",
+        "100",
+        "--construction",
+        "map",
+        "--output-dir",
+        "{output}/sets_map"
+      ],
+      "assets": [
+        "HEIR"
+      ],
+      "cwd": "{root}/workspace",
+      "distributed": false,
+      "run_name": "sov_stg_swinl",
+      "world_size": 1,
+      "pythonpath": [
+        "workspace/heir/scorer"
+      ]
+    },
+    "sov_stg_vla_s-prepare": {
+      "argv": [
+        "{python}",
+        "{root}/workspace/heir/tools/convert_heir_to_hico.py",
+        "--heir-root",
+        "{root}/data/heir",
+        "--out",
+        "{output}/heir_hico"
+      ],
+      "assets": [
+        "HEIR"
+      ],
+      "cwd": "{root}/workspace",
+      "distributed": false,
+      "run_name": "sov_stg_vla_s",
+      "world_size": 1,
+      "pythonpath": [
+        "workspace/heir/scorer"
+      ]
+    },
+    "sov_stg_vla_s-support": {
+      "argv": [
+        "{python}",
+        "{root}/workspace/heir/tools/build_support_mask.py",
+        "--support-csv",
+        "{root}/data/heir_support.csv",
+        "--classes",
+        "{output}/heir_hico/annotations/classes.json",
+        "--out",
+        "{output}/support_mask.npy"
+      ],
+      "assets": [
+        "HEIR_SUPPORT"
+      ],
+      "cwd": "{root}/workspace",
+      "distributed": false,
+      "run_name": "sov_stg_vla_s",
+      "world_size": 1,
+      "pythonpath": [
+        "workspace/heir/scorer"
+      ]
+    },
+    "sov_stg_vla_s-labels": {
+      "argv": [
+        "{python}",
+        "tools/build_heir_text_labels.py",
+        "--root",
+        "{output}/heir_hico/annotations",
+        "--corre",
+        "{output}/support_mask.npy",
+        "--out",
+        "datasets_hoi/heir_text_label_sem10072.py"
+      ],
+      "assets": [],
+      "cwd": "{root}/workspace/reference_repos/SOV-STG-VLA",
+      "distributed": false,
+      "run_name": "sov_stg_vla_s",
+      "world_size": 1
+    },
+    "sov_stg_vla_s-init": {
+      "argv": [
+        "{python}",
+        "convert_parameters_heir.py",
+        "--load_path",
+        "{root}/assets/dndetr/converted_dn_deformable_detr_r50_50ep.pth",
+        "--save_path",
+        "{output}/init.pth"
+      ],
+      "assets": [
+        "DN_DEFORMABLE_DETR_R50"
+      ],
+      "cwd": "{root}/workspace/reference_repos/SOV-STG",
+      "distributed": false,
+      "run_name": "sov_stg_vla_s",
+      "world_size": 1
+    },
+    "sov_stg_vla_s-train": {
+      "argv": [
+        "{python}",
+        "main.py",
+        "--dataset_file",
+        "heir",
+        "--hoi_path",
+        "{output}/heir_hico",
+        "--num_obj_classes",
+        "437",
+        "--num_verb_classes",
+        "225",
+        "--subject_category_id",
+        "0",
+        "--batch_size",
+        "4",
+        "--accum_steps",
+        "2",
+        "--num_workers",
+        "8",
+        "--output_dir",
+        "{output}/train",
+        "--skip_epoch_eval",
+        "--with_clip_label",
+        "--fix_clip",
+        "--zero_shot_type",
+        "default",
+        "--init_checkpoint",
+        "{output}/init.pth",
+        "-c",
+        "slconfig/sov-stg-s-vla-blip2_heir.py"
+      ],
+      "assets": [
+        "CLIP_VIT_B32",
+        "BLIP2_PRETRAINED",
+        "EVA_VIT_G"
+      ],
+      "cwd": "{root}/workspace/reference_repos/SOV-STG-VLA",
+      "distributed": true,
+      "run_name": "sov_stg_vla_s",
+      "world_size": 2,
+      "pythonpath": [
+        "workspace/reference_repos/CLIP",
+        "workspace/reference_repos/SOV-STG-VLA"
+      ]
+    },
+    "sov_stg_vla_s-export": {
+      "argv": [
+        "{python}",
+        "export_heir.py",
+        "--checkpoint",
+        "{output}/train/checkpoint0014.pth",
+        "--split",
+        "test",
+        "--hoi_path",
+        "{output}/heir_hico",
+        "--output",
+        "{output}/test_predictions.jsonl"
+      ],
+      "assets": [
+        "CLIP_VIT_B32",
+        "BLIP2_PRETRAINED",
+        "EVA_VIT_G"
+      ],
+      "cwd": "{root}/workspace/reference_repos/SOV-STG-VLA",
+      "distributed": false,
+      "run_name": "sov_stg_vla_s",
+      "world_size": 1,
+      "pythonpath": [
+        "workspace/reference_repos/CLIP",
+        "workspace/reference_repos/SOV-STG-VLA"
+      ]
+    },
+    "sov_stg_vla_s-score-role": {
+      "argv": [
+        "{python}",
+        "{root}/workspace/heir/scorer/evaluate_heir_predictions.py",
+        "--heir-root",
+        "{root}/data/heir",
+        "--classes",
+        "{output}/heir_hico/annotations/classes.json",
+        "--split",
+        "test",
+        "--predictions",
+        "{output}/test_predictions.jsonl",
+        "--output-dir",
+        "{output}/role"
+      ],
+      "assets": [
+        "HEIR"
+      ],
+      "cwd": "{root}/workspace",
+      "distributed": false,
+      "run_name": "sov_stg_vla_s",
+      "world_size": 1,
+      "pythonpath": [
+        "workspace/heir/scorer"
+      ]
+    },
+    "sov_stg_vla_s-score-hoi": {
+      "argv": [
+        "{python}",
+        "{root}/workspace/heir/scorer/evaluate_heir_predictions.py",
+        "--heir-root",
+        "{root}/data/heir",
+        "--classes",
+        "{output}/heir_hico/annotations/classes.json",
+        "--split",
+        "test",
+        "--predictions",
+        "{output}/test_predictions.jsonl",
+        "--hoi",
+        "--output-dir",
+        "{output}/hoi"
+      ],
+      "assets": [
+        "HEIR"
+      ],
+      "cwd": "{root}/workspace",
+      "distributed": false,
+      "run_name": "sov_stg_vla_s",
+      "world_size": 1,
+      "pythonpath": [
+        "workspace/heir/scorer"
+      ]
+    },
+    "sov_stg_vla_s-score-sets-topk": {
+      "argv": [
+        "{python}",
+        "{root}/workspace/heir/scorer/evaluate_heir_sets.py",
+        "--heir-root",
+        "{root}/data/heir",
+        "--classes",
+        "{output}/heir_hico/annotations/classes.json",
+        "--split",
+        "test",
+        "--predictions",
+        "{output}/test_predictions.jsonl",
+        "--max-sets",
+        "100",
+        "--construction",
+        "top-k",
+        "--output-dir",
+        "{output}/sets_topk"
+      ],
+      "assets": [
+        "HEIR"
+      ],
+      "cwd": "{root}/workspace",
+      "distributed": false,
+      "run_name": "sov_stg_vla_s",
+      "world_size": 1,
+      "pythonpath": [
+        "workspace/heir/scorer"
+      ]
+    },
+    "sov_stg_vla_s-score-sets-map": {
+      "argv": [
+        "{python}",
+        "{root}/workspace/heir/scorer/evaluate_heir_sets.py",
+        "--heir-root",
+        "{root}/data/heir",
+        "--classes",
+        "{output}/heir_hico/annotations/classes.json",
+        "--split",
+        "test",
+        "--predictions",
+        "{output}/test_predictions.jsonl",
+        "--max-sets",
+        "100",
+        "--construction",
+        "map",
+        "--output-dir",
+        "{output}/sets_map"
+      ],
+      "assets": [
+        "HEIR"
+      ],
+      "cwd": "{root}/workspace",
+      "distributed": false,
+      "run_name": "sov_stg_vla_s",
+      "world_size": 1,
+      "pythonpath": [
+        "workspace/heir/scorer"
+      ]
+    }
+  },
+  "family": "sov-stg"
+}

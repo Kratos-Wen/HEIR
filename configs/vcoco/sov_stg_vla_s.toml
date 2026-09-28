@@ -1,0 +1,11 @@
+name = "SOV-STG-VLA-S"
+benchmark = "vcoco"
+# V-COCO baselines run from the pinned release of this repository's reproductions/vcoco-baselines branch.
+repository = "https://github.com/Kratos-Wen/HEIR"
+branch = "reproductions/vcoco-baselines"
+commit = "f813e662f19011d01a489f5a55687c022b43a316"
+model = "sov-stg"
+variant = "sov_stg_vla_s"
+checkpoint = "sov_stg_vla_s_vcoco"
+checkpoint_asset = "SOV_STG_VLA_S_RESUME"
+python = "sov-stg"

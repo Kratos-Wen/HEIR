@@ -1,0 +1,7 @@
+{
+  "CLIP_VIT_B32": "/path/to/clip_vit_b32",
+  "DETR_R101": "/path/to/detr_r101",
+  "DETR_R50": "/path/to/detr_r50",
+  "HEIR": "/path/to/heir",
+  "HEIR_SUPPORT": "/path/to/heir_support"
+}

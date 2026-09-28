@@ -1,0 +1,462 @@
+diff --git a/datasets/__init__.py b/datasets/__init__.py
+index 1214d5f..994c7d7 100644
+--- a/datasets/__init__.py
++++ b/datasets/__init__.py
+@@ -3,10 +3,13 @@ import torchvision
+ 
+ from .hico import build as build_hico
+ from .vcoco import build as build_vcoco
++from .heir import build as build_heir
+ 
+ def build_dataset(image_set, args):
+     if args.dataset_file == 'hico':
+         return build_hico(image_set, args)
+     if args.dataset_file == 'vcoco':
+         return build_vcoco(image_set, args)
++    if args.dataset_file == 'heir':
++        return build_heir(image_set, args)
+     raise ValueError(f'dataset {args.dataset_file} not supported')
+diff --git a/datasets/heir.py b/datasets/heir.py
+new file mode 100644
+index 0000000..7e623bb
+--- /dev/null
++++ b/datasets/heir.py
+@@ -0,0 +1,40 @@
++"""HEIR v1.0 in HICO-DET layout (converted by common/convert_heir_to_hico.py).
++
++Identical to MUREN's HICODetection (same targets, same DETR augmentations, same
++per-pair multi-label interaction vectors) except the label spaces: object ids are
++already contiguous 0..436 (person = 0) and interaction ids contiguous 0..224, so
++the id -> index maps are the identity.
++"""
++from pathlib import Path
++import json
++
++import numpy as np
++
++from .hico import HICODetection, make_hico_transforms
++
++NUM_OBJ = 437
++NUM_INTER = 225
++
++
++class HEIRDetection(HICODetection):
++    def __init__(self, img_set, img_folder, anno_file, transforms, num_queries, args=None):
++        super().__init__(img_set, img_folder, anno_file, transforms, num_queries, args=args)
++        self._valid_obj_ids = list(range(NUM_OBJ))
++        self._valid_verb_ids = list(range(NUM_INTER))
++
++
++def build(image_set, args):
++    root = Path(args.hoi_path)
++    assert root.exists(), f'provided HOI path {root} does not exist'
++    assert args.num_obj_classes == NUM_OBJ and args.num_verb_classes == NUM_INTER, \
++        'HEIR needs --num_obj_classes 437 --num_verb_classes 225'
++    split = {'train': 'train', 'val': 'val', 'test': 'test'}[image_set]
++    anno_file = root / 'annotations' / f'{split}_heir.json'
++    # train uses the full DETR augmentation pipeline; val/test use the HICO eval transform
++    transforms = make_hico_transforms('train' if image_set == 'train' else 'val')
++    dataset = HEIRDetection('train' if image_set == 'train' else 'val', root / 'images', anno_file,
++                            transforms=transforms, num_queries=args.num_queries, args=args)
++    if image_set != 'train':
++        # corre_heir.npy is [num_obj, num_inter]; MUREN's HICO evaluator indexes correct_mat[verb, obj]
++        dataset.correct_mat = np.load(root / 'annotations' / 'corre_heir.npy').T.astype(np.float32)
++    return dataset
+diff --git a/datasets/hico_eval.py b/datasets/hico_eval.py
+index c48020d..61baa12 100644
+--- a/datasets/hico_eval.py
++++ b/datasets/hico_eval.py
+@@ -1,6 +1,10 @@
+ import numpy as np
+ from collections import defaultdict
+-import os, cv2, json
++import os, json
++try:
++    import cv2  # noqa: F401  (unused; absent in the HEIR env)
++except ImportError:
++    cv2 = None
+ from tqdm import tqdm
+ import pickle
+ import torch
+diff --git a/engine.py b/engine.py
+index f73581f..cb3c7bb 100644
+--- a/engine.py
++++ b/engine.py
+@@ -9,17 +9,15 @@ import itertools
+ import torch
+ 
+ import util.misc as utils
+-from datasets.hico_eval import HICOEvaluator
+-from datasets.vcoco_eval import VCOCOEvaluator
+-from datasets.hico_eval_ko import HICOEvaluatorKO
+-import wandb
++# HEIR: evaluators (cv2/matplotlib/wandb deps) are imported lazily inside evaluate_hoi; the HEIR
++# pipeline trains with --train_only and scores with tools/export_heir_predictions.py instead.
+ from collections import defaultdict
+ import pickle
+ import time
+ 
+ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
+                     data_loader: Iterable, optimizer: torch.optim.Optimizer,
+-                    device: torch.device, epoch: int, max_norm: float = 0):
++                    device: torch.device, epoch: int, max_norm: float = 0, max_iters: int = 0):
+     model.train()
+     criterion.train()
+     metric_logger = utils.MetricLogger(delimiter="  ")
+@@ -31,7 +29,9 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
+     header = 'Epoch: [{}]'.format(epoch)
+     print_freq = 10
+ 
+-    for samples, targets in metric_logger.log_every(data_loader, print_freq, header):
++    for it, (samples, targets) in enumerate(metric_logger.log_every(data_loader, print_freq, header)):
++        if max_iters and it >= max_iters:  # smoke tests only
++            break
+         samples = samples.to(device)
+         targets = [{k: v.to(device) for k, v in t.items() if k != 'filename'} for t in targets]
+ 
+@@ -133,6 +133,9 @@ def train_one_epoch_classifier(model: torch.nn.Module, criterion: torch.nn.Modul
+ 
+ @torch.no_grad()
+ def evaluate_hoi(dataset_file, model, postprocessors, data_loader, subject_category_id, device, args):
++    from datasets.hico_eval import HICOEvaluator
++    from datasets.vcoco_eval import VCOCOEvaluator
++    from datasets.hico_eval_ko import HICOEvaluatorKO
+     model.eval()
+ 
+     metric_logger = utils.MetricLogger(delimiter="  ")
+diff --git a/main.py b/main.py
+index 9447848..9587d03 100644
+--- a/main.py
++++ b/main.py
+@@ -15,7 +15,10 @@ from datasets import build_dataset
+ from engine import train_one_epoch, train_one_epoch_classifier, evaluate_hoi
+ from models import build_model
+ import os
+-import wandb
++try:
++    import wandb
++except ImportError:  # HEIR env has no wandb; logging goes to log.txt
++    wandb = None
+ def get_args_parser():
+     parser = argparse.ArgumentParser('Set transformer detector', add_help=False)
+     parser.add_argument('--lr', default=1e-4, type=float)
+@@ -112,7 +115,10 @@ def get_args_parser():
+     parser.add_argument('--start_epoch', default=0, type=int, metavar='N',
+                         help='start epoch')
+     parser.add_argument('--eval', action='store_true')
++    parser.add_argument('--train_only', action='store_true',
++                        help='Do not construct or evaluate the test-backed val dataset.')
+     parser.add_argument('--num_workers', default=2, type=int)
++    parser.add_argument('--max_iters_per_epoch', default=0, type=int, help='smoke tests only (0 = full epoch)')
+ 
+     # distributed training parameters
+     parser.add_argument('--world_size', default=1, type=int,
+@@ -134,6 +140,8 @@ def get_args_parser():
+ 
+ 
+ def main(args):
++    if args.train_only and args.eval:
++        raise ValueError('--train_only and --eval are mutually exclusive')
+     utils.init_distributed_mode(args)
+ 
+     print("git:\n  {}\n".format(utils.get_sha()))
+@@ -147,8 +155,11 @@ def main(args):
+ 
+     seed = args.seed + utils.get_rank()
+     torch.manual_seed(seed)
++    torch.cuda.manual_seed_all(seed)
+     np.random.seed(seed)
+     random.seed(seed)
++    torch.backends.cudnn.benchmark = False
++    torch.backends.cudnn.deterministic = True
+ 
+     model, criterion, postprocessors = build_model(args)
+     model.to(device)
+@@ -176,22 +187,24 @@ def main(args):
+     lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, args.lr_drop,gamma=args.gamma)
+ 
+     dataset_train = build_dataset(image_set='train', args=args)
+-    dataset_val = build_dataset(image_set='val', args=args)
++    dataset_val = None if args.train_only else build_dataset(image_set='val', args=args)
+ 
+     if args.distributed:
+         sampler_train = DistributedSampler(dataset_train)
+-        sampler_val = DistributedSampler(dataset_val, shuffle=False)
+     else:
+         sampler_train = torch.utils.data.RandomSampler(dataset_train)
+-        sampler_val = torch.utils.data.SequentialSampler(dataset_val)
+ 
+     batch_sampler_train = torch.utils.data.BatchSampler(
+         sampler_train, args.batch_size, drop_last=True)
+ 
+     data_loader_train = DataLoader(dataset_train, batch_sampler=batch_sampler_train,
+                                    collate_fn=utils.collate_fn, num_workers=args.num_workers)
+-    data_loader_val = DataLoader(dataset_val, args.batch_size, sampler=sampler_val,
+-                                 drop_last=False, collate_fn=utils.collate_fn, num_workers=args.num_workers)
++    data_loader_val = None
++    if dataset_val is not None:
++        sampler_val = (DistributedSampler(dataset_val, shuffle=False) if args.distributed
++                       else torch.utils.data.SequentialSampler(dataset_val))
++        data_loader_val = DataLoader(dataset_val, args.batch_size, sampler=sampler_val,
++                                    drop_last=False, collate_fn=utils.collate_fn, num_workers=args.num_workers)
+ 
+     if args.frozen_weights is not None:
+         checkpoint = torch.load(args.frozen_weights, map_location='cpu')
+@@ -203,29 +216,40 @@ def main(args):
+             checkpoint = torch.hub.load_state_dict_from_url(
+                 args.resume, map_location='cpu', check_hash=True)
+         else:
+-            checkpoint = torch.load(args.resume, map_location='cpu')
++            checkpoint = torch.load(args.resume, map_location='cpu', weights_only=False)
+         model_without_ddp.load_state_dict(checkpoint['model'])
+         if not args.eval and 'optimizer' in checkpoint and 'lr_scheduler' in checkpoint and 'epoch' in checkpoint:
+             optimizer.load_state_dict(checkpoint['optimizer'])
+             lr_scheduler.load_state_dict(checkpoint['lr_scheduler'])
+             args.start_epoch = checkpoint['epoch'] + 1
+-
+-        if args.fine:
++            if 'rng_states' in checkpoint:
++                if len(checkpoint['rng_states']) != utils.get_world_size():
++                    raise ValueError('Resume requires the same world size')
++                rng = checkpoint['rng_states'][utils.get_rank()]
++                random.setstate(rng['python'])
++                np.random.set_state(rng['numpy'])
++                torch.set_rng_state(rng['torch'])
++                torch.cuda.set_rng_state(rng['cuda'], device)
++
++        if getattr(args, 'fine', False):
+             for p in optimizer.param_groups:
+                 p['lr'] = p['lr'] / 10
+     elif args.pretrained:
+-        checkpoint = torch.load(args.pretrained, map_location='cpu')
++        checkpoint = torch.load(args.pretrained, map_location='cpu', weights_only=False)
+         if args.eval:
+             model_without_ddp.load_state_dict(checkpoint['model'])
+         else:
+-            model_without_ddp.load_state_dict(checkpoint['model'], strict=False)
++            print('Pretrained load:', model_without_ddp.load_state_dict(checkpoint['model'], strict=False))
++
++    if utils.is_main_process():
++        (output_dir / 'resolved_args.json').write_text(json.dumps(vars(args), indent=2) + '\n')
+ 
+     if args.eval:
+         test_stats = evaluate_hoi(args.dataset_file, model, postprocessors, data_loader_val, args.subject_category_id, device, args)
+         return
+ 
+ 
+-    if not args.debug:
++    if not args.debug and wandb is not None:
+         if utils.is_main_process():
+             wandb.init(project='MUREN',name=args.output_dir)
+     else:
+@@ -241,9 +265,30 @@ def main(args):
+ 
+         train_stats = train_one_epoch(
+             model, criterion, data_loader_train, optimizer, device, epoch,
+-            args.clip_max_norm)
++            args.clip_max_norm, max_iters=args.max_iters_per_epoch)
+         lr_scheduler.step()
+ 
++        if args.train_only:
++            rng = {'python': random.getstate(), 'numpy': np.random.get_state(),
++                   'torch': torch.get_rng_state(), 'cuda': torch.cuda.get_rng_state(device)}
++            rng_states = [None] * utils.get_world_size()
++            if args.distributed:
++                torch.distributed.all_gather_object(rng_states, rng)
++            else:
++                rng_states[0] = rng
++            if utils.is_main_process():
++                state = {'model': model_without_ddp.state_dict(), 'optimizer': optimizer.state_dict(),
++                         'lr_scheduler': lr_scheduler.state_dict(), 'epoch': epoch,
++                         'args': args, 'rng_states': rng_states,
++                         'checkpoint_selection': 'predeclared_final_epoch_no_test_selection'}
++                temporary = output_dir / 'checkpoint_last.pth.tmp'
++                torch.save(state, temporary)
++                os.replace(temporary, output_dir / 'checkpoint_last.pth')
++                with (output_dir / 'log.txt').open('a') as handle:
++                    handle.write(json.dumps({**{'train_' + k: v for k, v in train_stats.items()},
++                                             'epoch': epoch, 'n_parameters': n_parameters}) + '\n')
++            continue
++
+         if epoch == args.epochs - 1:
+             checkpoint_path = os.path.join(output_dir, 'checkpoint_last.pth')
+             utils.save_on_master({
+@@ -283,7 +328,7 @@ def main(args):
+                      **{f'test_{k}': v for k, v in test_stats.items()},
+                      'epoch': epoch,
+                      'n_parameters': n_parameters}
+-        if utils.is_main_process() and not args.debug:
++        if utils.is_main_process() and not args.debug and wandb is not None:
+             wandb.log(log_stats)
+ 
+         if args.output_dir and utils.is_main_process():
+diff --git a/tools/convert_detr_to_muren.py b/tools/convert_detr_to_muren.py
+new file mode 100644
+index 0000000..c0227dd
+--- /dev/null
++++ b/tools/convert_detr_to_muren.py
+@@ -0,0 +1,49 @@
++"""Convert COCO-pretrained DETR-R50 into MUREN's three-branch layout for HEIR.
++
++Follows QPIC/CDN's convert_parameters.py ("2stage" variant used for MUREN's
++detr-r50-pre-2stage-nq64.pth): backbone, input_proj and encoder copied as is;
++DETR's decoder (layers + final norm) copied into each of MUREN's three branch
++decoders (human / object / relation); the first num_queries rows of DETR's
++query_embed initialise all three query embeddings; DETR's bbox_embed initialises
++both sub_bbox_embed and obj_bbox_embed. The object classifier is NOT copied:
++HEIR has 437 object classes (vs COCO 91), so obj_class_embed keeps its random
++init (loaded with strict=False). MURE / ATF modules are new (random init) as in
++the official recipe.
++"""
++import argparse
++import torch
++
++ap = argparse.ArgumentParser()
++ap.add_argument('--load_path', required=True)
++ap.add_argument('--save_path', required=True)
++ap.add_argument('--num_queries', type=int, default=64)
++ap.add_argument('--dec_layers', type=int, default=6)
++a = ap.parse_args()
++
++src = torch.load(a.load_path, map_location='cpu')['model']
++out = {}
++for k, v in src.items():
++    if k.startswith('backbone.') or k.startswith('input_proj.') or k.startswith('transformer.encoder.'):
++        out[k] = v.clone()
++    elif k.startswith('transformer.decoder.layers.'):
++        rest = k[len('transformer.decoder.layers.'):]
++        assert int(rest.split('.')[0]) < a.dec_layers
++        for br in ('human', 'obj', 'rel'):
++            out[f'transformer.decoder.layers_{br}.{rest}'] = v.clone()
++    elif k.startswith('transformer.decoder.norm.'):
++        rest = k[len('transformer.decoder.norm.'):]
++        for br in ('human', 'obj', 'rel'):
++            out[f'transformer.decoder.norm_{br}.{rest}'] = v.clone()
++    elif k == 'query_embed.weight':
++        for br in ('human', 'obj', 'rel'):
++            out[f'query_embed_{br}.weight'] = v[:a.num_queries].clone()
++    elif k.startswith('bbox_embed.'):
++        rest = k[len('bbox_embed.'):]
++        out['sub_bbox_embed.' + rest] = v.clone()
++        out['obj_bbox_embed.' + rest] = v.clone()
++    elif k.startswith('class_embed.'):
++        continue  # re-initialised for 437 HEIR objects
++    else:
++        raise KeyError(f'unexpected DETR key {k}')
++torch.save({'model': out}, a.save_path)
++print(f'saved {len(out)} tensors to {a.save_path}')
+diff --git a/tools/export_heir_predictions.py b/tools/export_heir_predictions.py
+new file mode 100644
+index 0000000..14639de
+--- /dev/null
++++ b/tools/export_heir_predictions.py
+@@ -0,0 +1,109 @@
++"""Export MUREN predictions on a HEIR split to the shared JSONL format.
++
++Post-processing is MUREN's HICO-DET evaluation path, unchanged:
++  PostProcessHOI: obj_score = max softmax over the 437 real classes, interaction
++  score = sigmoid(verb logit) * obj_score (per query pair, 64 pairs x 225 classes);
++  boxes = 64 subject boxes (label person=0) + 64 object boxes, in original pixels.
++  HICOEvaluator: score *= correct_mat[interaction, obj_label] (corre_heir.npy),
++  keep top-100 per image, then triplet pair-NMS (--use_nms_filter as in the
++  official HICO eval command; thres 0.6, alpha 0.7, beta 0.7 = MUREN defaults).
++box_scores: MUREN has no separate subject confidence; subject box i and object
++box i both get obj_score of query i (the pair confidence).
++"""
++import argparse, json, sys
++from pathlib import Path
++
++import numpy as np
++import torch
++
++sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
++import main as muren_main  # noqa: E402
++import util.misc as utils  # noqa: E402
++from datasets import build_dataset  # noqa: E402
++from datasets.hico_eval import HICOEvaluator  # noqa: E402  (only its NMS methods are used)
++from models import build_model  # noqa: E402
++
++
++class _NMS(HICOEvaluator):
++    def __init__(self, args):  # skip the evaluator's heavy constructor
++        self.thres_nms, self.nms_alpha, self.nms_beta = args.thres_nms, args.nms_alpha, args.nms_beta
++
++
++def main():
++    parser = argparse.ArgumentParser(parents=[muren_main.get_args_parser()])
++    parser.add_argument('--checkpoint', required=True)
++    parser.add_argument('--split', choices=('val', 'test'), required=True)
++    parser.add_argument('--predictions', required=True)
++    parser.add_argument('--max_images', type=int, default=0, help='smoke: only run the first N images, rest empty')
++    parser.add_argument('--max_hois', type=int, default=100)
++    parser.add_argument('--correct_mat_path', default='',
++                        help='bool [437 obj, 225 inter] mask replacing corre_heir.npy (e.g. corre_semantic10072.npy)')
++    args = parser.parse_args()
++    args.distributed = False
++    device = torch.device(args.device)
++
++    model, _, post = build_model(args)
++    ck = torch.load(args.checkpoint, map_location='cpu', weights_only=False)
++    model.load_state_dict(ck['model'])
++    model.to(device).eval()
++    print('loaded', args.checkpoint, 'epoch', ck.get('epoch'))
++
++    ds = build_dataset(args.split, args)
++    records = ds.annotations
++    assert ds.ids == list(range(len(records)))
++    n_run = len(ds) if args.max_images <= 0 else min(args.max_images, len(ds))
++    sub = torch.utils.data.Subset(ds, list(range(n_run)))
++    dl = torch.utils.data.DataLoader(sub, batch_size=args.batch_size, shuffle=False,
++                                     collate_fn=utils.collate_fn, num_workers=args.num_workers)
++    correct_mat = ds.correct_mat  # [225, 437]
++    if args.correct_mat_path:  # same transpose as corre_heir.npy in datasets/heir.py
++        m = np.load(args.correct_mat_path)
++        assert m.shape == (437, 225) and m.dtype == bool, (m.shape, m.dtype)
++        correct_mat = m.T.astype(np.float32)
++        print('correct_mat from', args.correct_mat_path, 'allowed', int(m.sum()))
++    nms = _NMS(args)
++    out_lines = []
++    idx = 0
++    with torch.no_grad():
++        for samples, targets in dl:
++            outputs = model(samples.to(device))
++            sizes = torch.stack([t['orig_size'] for t in targets]).to(device)
++            results = post['hoi'](outputs, sizes)
++            for res, tgt in zip(results, targets):
++                assert int(tgt['id']) == idx
++                boxes = res['boxes'].numpy()
++                labels = res['labels'].numpy()
++                obj_scores = res['obj_scores'].numpy()
++                vs = res['verb_scores'].numpy()  # [Q, 225]
++                q, c = vs.shape
++                sub_ids = np.repeat(res['sub_ids'].numpy(), c)
++                obj_ids = np.repeat(res['obj_ids'].numpy(), c)
++                cats = np.tile(np.arange(c), q)
++                scores = vs.ravel() * correct_mat[cats, labels[obj_ids]]
++                order = np.argsort(-scores, kind='stable')[:args.max_hois]
++                hois = [{'subject_id': int(sub_ids[i]), 'object_id': int(obj_ids[i]),
++                         'category_id': int(cats[i]), 'score': float(scores[i])} for i in order]
++                if args.use_nms_filter and hois:
++                    bb = [{'bbox': list(b), 'category_id': int(l)} for b, l in zip(boxes, labels)]
++                    hois = nms.triplet_nms_filter([{'filename': '', 'predictions': bb,
++                                                    'hoi_prediction': hois}])[0]['hoi_prediction']
++                    hois = [dict(h) for h in hois]
++                box_scores = np.concatenate([obj_scores, obj_scores])
++                out_lines.append({'image_id': str(records[idx]['image_id']),
++                                  'boxes': [[float(x) for x in b] for b in boxes],
++                                  'labels': [int(l) for l in labels],
++                                  'box_scores': [float(s) for s in box_scores], 'hois': hois})
++                idx += 1
++            print(f'{idx}/{n_run}', flush=True)
++    for j in range(idx, len(records)):
++        out_lines.append({'image_id': str(records[j]['image_id']), 'boxes': [], 'labels': [],
++                          'box_scores': [], 'hois': []})
++    Path(args.predictions).parent.mkdir(parents=True, exist_ok=True)
++    with open(args.predictions, 'w') as f:
++        for r in out_lines:
++            f.write(json.dumps(r) + '\n')
++    print('wrote', len(out_lines), 'lines to', args.predictions)
++
++
++if __name__ == '__main__':
++    main()

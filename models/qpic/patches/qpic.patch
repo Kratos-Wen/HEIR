@@ -1,0 +1,410 @@
+diff --git a/convert_parameters_heir.py b/convert_parameters_heir.py
+new file mode 100644
+index 0000000..6cef191
+--- /dev/null
++++ b/convert_parameters_heir.py
+@@ -0,0 +1,57 @@
++# HEIR adaptation of QPIC's convert_parameters.py (HICO branch).
++# Same logic as the official HICO conversion: sub/obj box MLPs are copies of DETR's bbox_embed,
++# obj_class_embed is derived from DETR's class_embed. HEIR has 437 object classes (person = 0), so the
++# object head is re-initialised (nn.Linear default init, seeded) except for rows whose class also exists
++# in COCO (exact name match, e.g. person, bicycle, cup): those copy the DETR row, as QPIC does for HICO.
++# The no-object row (DETR index 91) is kept as the last row, as in the official conversion.
++import argparse, json, hashlib
++import torch
++from torch import nn
++
++COCO = {1: 'person', 2: 'bicycle', 3: 'car', 4: 'motorcycle', 5: 'airplane', 6: 'bus', 7: 'train', 8: 'truck', 9: 'boat',
++        10: 'traffic light', 11: 'fire hydrant', 13: 'stop sign', 14: 'parking meter', 15: 'bench', 16: 'bird', 17: 'cat',
++        18: 'dog', 19: 'horse', 20: 'sheep', 21: 'cow', 22: 'elephant', 23: 'bear', 24: 'zebra', 25: 'giraffe', 27: 'backpack',
++        28: 'umbrella', 31: 'handbag', 32: 'tie', 33: 'suitcase', 34: 'frisbee', 35: 'skis', 36: 'snowboard', 37: 'sports ball',
++        38: 'kite', 39: 'baseball bat', 40: 'baseball glove', 41: 'skateboard', 42: 'surfboard', 43: 'tennis racket',
++        44: 'bottle', 46: 'wine glass', 47: 'cup', 48: 'fork', 49: 'knife', 50: 'spoon', 51: 'bowl', 52: 'banana', 53: 'apple',
++        54: 'sandwich', 55: 'orange', 56: 'broccoli', 57: 'carrot', 58: 'hot dog', 59: 'pizza', 60: 'donut', 61: 'cake',
++        62: 'chair', 63: 'couch', 64: 'potted plant', 65: 'bed', 67: 'dining table', 70: 'toilet', 72: 'tv', 73: 'laptop',
++        74: 'mouse', 75: 'remote', 76: 'keyboard', 77: 'cell phone', 78: 'microwave', 79: 'oven', 80: 'toaster', 81: 'sink',
++        82: 'refrigerator', 84: 'book', 85: 'clock', 86: 'vase', 87: 'scissors', 88: 'teddy bear', 89: 'hair drier',
++        90: 'toothbrush'}
++
++
++def main():
++    ap = argparse.ArgumentParser()
++    ap.add_argument('--load_path', required=True)
++    ap.add_argument('--save_path', required=True)
++    ap.add_argument('--classes', required=True)
++    ap.add_argument('--seed', type=int, default=42)
++    a = ap.parse_args()
++    objects = json.load(open(a.classes))['objects']
++    assert objects[0] == 'person' and len(objects) == 437
++    ps = torch.load(a.load_path, map_location='cpu', weights_only=False)
++    m = ps['model']
++    for part in ('sub', 'obj'):
++        for k in ('layers.0.weight', 'layers.0.bias', 'layers.1.weight', 'layers.1.bias', 'layers.2.weight', 'layers.2.bias'):
++            m[f'{part}_bbox_embed.{k}'] = m[f'bbox_embed.{k}'].clone()
++    torch.manual_seed(a.seed)
++    lin = nn.Linear(m['class_embed.weight'].shape[1], len(objects) + 1)
++    w, b = lin.weight.data.clone(), lin.bias.data.clone()
++    name2coco = {v: k for k, v in COCO.items()}
++    copied = {}
++    for i, n in enumerate(objects):
++        if n in name2coco:
++            w[i] = m['class_embed.weight'][name2coco[n]]
++            b[i] = m['class_embed.bias'][name2coco[n]]
++            copied[n] = name2coco[n]
++    w[-1] = m['class_embed.weight'][91]
++    b[-1] = m['class_embed.bias'][91]
++    m['obj_class_embed.weight'], m['obj_class_embed.bias'] = w, b
++    torch.save(ps, a.save_path)
++    print(json.dumps({'copied_from_coco': copied, 'num_copied': len(copied), 'num_reinit': len(objects) - len(copied),
++                      'sha256': hashlib.sha256(open(a.save_path, 'rb').read()).hexdigest()}))
++
++
++if __name__ == '__main__':
++    main()
+diff --git a/datasets/__init__.py b/datasets/__init__.py
+index 232db75..ebf4be3 100644
+--- a/datasets/__init__.py
++++ b/datasets/__init__.py
+@@ -11,6 +11,7 @@ import torchvision
+ from .coco import build as build_coco
+ from .hico import build as build_hico
+ from .vcoco import build as build_vcoco
++from .heir import build as build_heir
+ 
+ 
+ def get_coco_api_from_dataset(dataset):
+@@ -32,6 +33,8 @@ def build_dataset(image_set, args):
+         return build_coco_panoptic(image_set, args)
+     if args.dataset_file == 'hico':
+         return build_hico(image_set, args)
++    if args.dataset_file == 'heir':
++        return build_heir(image_set, args)
+     if args.dataset_file == 'vcoco':
+         return build_vcoco(image_set, args)
+     raise ValueError(f'dataset {args.dataset_file} not supported')
+diff --git a/datasets/heir.py b/datasets/heir.py
+new file mode 100644
+index 0000000..1767c1a
+--- /dev/null
++++ b/datasets/heir.py
+@@ -0,0 +1,40 @@
++"""HEIR v1.0 in HICO-DET layout (converted by common/convert_heir_to_hico.py).
++
++Same loader/targets/augmentations as QPIC's HICODetection; only the class id tables and paths differ:
++object ids are already contiguous 0..436 (person = 0), interaction ids contiguous 0..224.
++Train uses train_heir.json only; 'val' (per-epoch monitoring) = val_heir.json; 'test' = test_heir.json
++(inference/export only).
++"""
++from pathlib import Path
++import numpy as np
++
++from .hico import HICODetection, make_hico_transforms
++
++NUM_OBJ, NUM_VERB = 437, 225
++
++
++class HEIRDetection(HICODetection):
++    def __init__(self, img_set, img_folder, anno_file, transforms, num_queries):
++        super().__init__(img_set, img_folder, anno_file, transforms, num_queries)
++        self._valid_obj_ids = tuple(range(NUM_OBJ))
++        self._valid_verb_ids = list(range(NUM_VERB))
++
++    def load_correct_mat(self, path):
++        # corre_heir.npy is [object, interaction]; QPIC indexes correct_mat[verb, object] (HICO layout).
++        m = np.load(path)
++        assert m.shape == (NUM_OBJ, NUM_VERB), m.shape
++        self.correct_mat = m.T.astype(np.float32)
++
++
++def build(image_set, args):
++    root = Path(args.hoi_path)
++    assert root.exists(), f'provided HOI path {root} does not exist'
++    ann = root / 'annotations'
++    PATHS = {'train': ann / 'train_heir.json', 'val': ann / 'val_heir.json', 'test': ann / 'test_heir.json'}
++    tf = make_hico_transforms('train' if image_set == 'train' else 'val')
++    mode = 'train' if image_set == 'train' else 'val'
++    dataset = HEIRDetection(mode, root / 'images', PATHS[image_set], transforms=tf, num_queries=args.num_queries)
++    if image_set != 'train':
++        dataset.set_rare_hois(PATHS['train'])
++        dataset.load_correct_mat(ann / 'corre_heir.npy')
++    return dataset
+diff --git a/engine.py b/engine.py
+index 613c218..fb91bda 100644
+--- a/engine.py
++++ b/engine.py
+@@ -27,7 +27,7 @@ from datasets.vcoco_eval import VCOCOEvaluator
+ 
+ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
+                     data_loader: Iterable, optimizer: torch.optim.Optimizer,
+-                    device: torch.device, epoch: int, max_norm: float = 0):
++                    device: torch.device, epoch: int, max_norm: float = 0, max_iters: int = 0, status_cb=None):
+     model.train()
+     criterion.train()
+     metric_logger = utils.MetricLogger(delimiter="  ")
+@@ -39,7 +39,10 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
+     header = 'Epoch: [{}]'.format(epoch)
+     print_freq = 10
+ 
+-    for samples, targets in metric_logger.log_every(data_loader, print_freq, header):
++    n_iter = len(data_loader)
++    for it, (samples, targets) in enumerate(metric_logger.log_every(data_loader, print_freq, header)):
++        if max_iters and it >= max_iters:
++            break
+         samples = samples.to(device)
+         targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
+ 
+@@ -75,6 +78,8 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
+         else:
+             metric_logger.update(obj_class_error=loss_dict_reduced['obj_class_error'])
+         metric_logger.update(lr=optimizer.param_groups[0]["lr"])
++        if status_cb is not None and it % 100 == 0:
++            status_cb(it, n_iter, loss_value)
+     # gather the stats from all processes
+     metric_logger.synchronize_between_processes()
+     print("Averaged stats:", metric_logger)
+@@ -197,7 +202,7 @@ def evaluate_hoi(dataset_file, model, postprocessors, data_loader, subject_categ
+     preds = [img_preds for i, img_preds in enumerate(preds) if i in indices]
+     gts = [img_gts for i, img_gts in enumerate(gts) if i in indices]
+ 
+-    if dataset_file == 'hico':
++    if dataset_file in ('hico', 'heir'):
+         evaluator = HICOEvaluator(preds, gts, subject_category_id, data_loader.dataset.rare_triplets,
+                                   data_loader.dataset.non_rare_triplets, data_loader.dataset.correct_mat)
+     elif dataset_file == 'vcoco':
+diff --git a/export_heir.py b/export_heir.py
+new file mode 100644
+index 0000000..c2d7047
+--- /dev/null
++++ b/export_heir.py
+@@ -0,0 +1,106 @@
++"""Export QPIC predictions on HEIR val/test to the shared-scorer JSONL format.
++
++Post-processing = QPIC's PostProcessHOI + HICOEvaluator prediction path:
++  obj_prob = softmax(obj_logits)[:-1]; obj_score, obj_label = max
++  hoi score(q, v) = sigmoid(verb_logit[q, v]) * obj_score[q] * correct_mat[v, obj_label[q]]
++  keep the top 100 (QPIC max_hois) triplets per image; boxes rescaled to original pixels.
++Boxes: only subject/object boxes referenced by kept triplets are written (re-indexed); subject label = person (0).
++box_scores: object box = its query's object score; subject box = the same query's object score (QPIC has no
++separate subject confidence).
++"""
++import argparse, json, sys, time
++from pathlib import Path
++import numpy as np
++import torch
++from torch.utils.data import DataLoader, SequentialSampler
++
++sys.path.insert(0, str(Path(__file__).resolve().parent))
++import util.misc as utils
++from datasets.heir import build as build_heir
++from models import build_model
++from util.box_ops import box_cxcywh_to_xyxy
++
++
++def main():
++    ap = argparse.ArgumentParser()
++    ap.add_argument('--checkpoint', required=True)
++    ap.add_argument('--split', choices=('val', 'test'), required=True)
++    ap.add_argument('--output', required=True)
++    ap.add_argument('--hoi_path', required=True)
++    ap.add_argument('--limit', type=int, default=0, help='only run the first N images; others get empty predictions')
++    ap.add_argument('--top_k', type=int, default=100)
++    ap.add_argument('--batch_size', type=int, default=4)
++    ap.add_argument('--num_workers', type=int, default=4)
++    ap.add_argument('--correct_mat', default='', help='override co-occurrence mask: bool [437 objects, 225 interactions] .npy '
++                    '(same layout as corre_heir.npy); default = corre_heir.npy')
++    a = ap.parse_args()
++
++    ck = torch.load(a.checkpoint, map_location='cpu', weights_only=False)
++    args = ck['args']
++    args.hoi_path = a.hoi_path
++    args.distributed = False
++    device = torch.device('cuda')
++    model, _, _ = build_model(args)
++    print(model.load_state_dict(ck['model']))
++    model.to(device).eval()
++
++    ds = build_heir(a.split, args)
++    if a.correct_mat:
++        m = np.load(a.correct_mat)
++        assert m.shape == (437, 225), m.shape
++        ds.correct_mat = m.T.astype(np.float32)  # same transpose as HEIRDetection.load_correct_mat
++        print('correct_mat override:', a.correct_mat, 'allowed =', int(m.sum()))
++    correct = torch.from_numpy(ds.correct_mat).to(device)  # [V, O]
++    n = len(ds) if not a.limit else min(a.limit, len(ds))
++    sub = torch.utils.data.Subset(ds, list(range(n)))
++    dl = DataLoader(sub, a.batch_size, sampler=SequentialSampler(sub), collate_fn=utils.collate_fn,
++                    num_workers=a.num_workers)
++    recs = {}
++    mismatched = 0
++    t0 = time.time()
++    with torch.no_grad():
++        for samples, targets in dl:
++            out = model(samples.to(device))
++            obj_prob = out['pred_obj_logits'].softmax(-1)[..., :-1]
++            obj_scores, obj_labels = obj_prob.max(-1)                        # [B, Q]
++            verb = out['pred_verb_logits'].sigmoid() * obj_scores[..., None]  # [B, Q, V]
++            verb = verb * correct[:, obj_labels].permute(1, 2, 0)            # mask[v, label[b,q]] -> [B,Q,V]
++            for b, t in enumerate(targets):
++                idx = int(t['id'])
++                anno = ds.annotations[idx]
++                h, w = [int(x) for x in t['orig_size']]
++                if (w, h) != (anno['width'], anno['height']):
++                    mismatched += 1
++                scale = torch.tensor([w, h, w, h], dtype=torch.float32, device=device)
++                sb = box_cxcywh_to_xyxy(out['pred_sub_boxes'][b]) * scale
++                ob = box_cxcywh_to_xyxy(out['pred_obj_boxes'][b]) * scale
++                vs = verb[b].flatten()
++                k = min(a.top_k, vs.numel())
++                sc, flat = vs.topk(k)
++                keep = sc > 0
++                sc, flat = sc[keep].tolist(), flat[keep]
++                qs = (flat // verb.shape[-1]).tolist()
++                vids = (flat % verb.shape[-1]).tolist()
++                boxes, labels, bscores, hois, sub_map, obj_map = [], [], [], [], {}, {}
++                for s, q, v in zip(sc, qs, vids):
++                    if q not in sub_map:
++                        sub_map[q] = len(boxes)
++                        boxes.append(sb[q].tolist()); labels.append(0); bscores.append(float(obj_scores[b, q]))
++                    if q not in obj_map:
++                        obj_map[q] = len(boxes)
++                        boxes.append(ob[q].tolist()); labels.append(int(obj_labels[b, q])); bscores.append(float(obj_scores[b, q]))
++                    hois.append({'subject_id': sub_map[q], 'object_id': obj_map[q], 'category_id': int(v), 'score': float(s)})
++                recs[idx] = {'image_id': anno['image_id'], 'boxes': [[round(x, 2) for x in bb] for bb in boxes],
++                             'labels': labels, 'box_scores': bscores, 'hois': hois}
++    Path(a.output).parent.mkdir(parents=True, exist_ok=True)
++    with open(a.output, 'w') as f:
++        for i, anno in enumerate(ds.annotations):
++            r = recs.get(i, {'image_id': anno['image_id'], 'boxes': [], 'labels': [], 'box_scores': [], 'hois': []})
++            f.write(json.dumps(r) + '\n')
++    print(json.dumps({'split': a.split, 'images': len(ds.annotations), 'predicted': len(recs),
++                      'size_mismatch_vs_json': mismatched, 'seconds': round(time.time() - t0, 1),
++                      'checkpoint': a.checkpoint, 'epoch': ck.get('epoch'), 'correct_mat': a.correct_mat or 'corre_heir.npy'}))
++
++
++if __name__ == '__main__':
++    main()
+diff --git a/main.py b/main.py
+index ba6d720..fe319fb 100644
+--- a/main.py
++++ b/main.py
+@@ -126,9 +126,34 @@ def get_args_parser():
+     parser.add_argument('--world_size', default=1, type=int,
+                         help='number of distributed processes')
+     parser.add_argument('--dist_url', default='env://', help='url used to set up distributed training')
++
++    # HEIR additions (bookkeeping only; they do not change the optimisation recipe)
++    parser.add_argument('--max_train_iters', default=0, type=int,
++                        help='smoke test: stop after this many iterations (0 = full schedule)')
++    parser.add_argument('--eval_interval', default=1, type=int,
++                        help='run the internal HICO-style val evaluation every N epochs (and at the last epoch)')
++    parser.add_argument('--status_file', default='', type=str, help='JSON progress file written by rank 0')
+     return parser
+ 
+ 
++def write_status(args, epoch, it, n_iter, loss, start_time, state='training'):
++    if not args.status_file or not utils.is_main_process():
++        return
++    done = epoch - args.start_epoch + (it / max(n_iter, 1))
++    elapsed = time.time() - start_time
++    total = args.epochs - args.start_epoch
++    eta = elapsed / done * (total - done) if done > 0 else None
++    st = {'state': state, 'epoch': epoch, 'epochs': args.epochs, 'iter': it, 'iters_per_epoch': n_iter,
++          'loss': loss, 'elapsed_h': elapsed / 3600, 'eta_h': None if eta is None else eta / 3600,
++          'eta_utc': None if eta is None else datetime.datetime.utcfromtimestamp(time.time() + eta).isoformat() + 'Z',
++          'updated_utc': datetime.datetime.utcnow().isoformat() + 'Z'}
++    tmp = args.status_file + '.tmp'
++    with open(tmp, 'w') as f:
++        json.dump(st, f, indent=1)
++    import os
++    os.replace(tmp, args.status_file)
++
++
+ def main(args):
+     utils.init_distributed_mode(args)
+     print("git:\n  {}\n".format(utils.get_sha()))
+@@ -193,7 +218,7 @@ def main(args):
+             base_ds = get_coco_api_from_dataset(dataset_val)
+ 
+     if args.frozen_weights is not None:
+-        checkpoint = torch.load(args.frozen_weights, map_location='cpu')
++        checkpoint = torch.load(args.frozen_weights, map_location='cpu', weights_only=False)
+         model_without_ddp.detr.load_state_dict(checkpoint['model'])
+ 
+     output_dir = Path(args.output_dir)
+@@ -202,14 +227,14 @@ def main(args):
+             checkpoint = torch.hub.load_state_dict_from_url(
+                 args.resume, map_location='cpu', check_hash=True)
+         else:
+-            checkpoint = torch.load(args.resume, map_location='cpu')
++            checkpoint = torch.load(args.resume, map_location='cpu', weights_only=False)
+         model_without_ddp.load_state_dict(checkpoint['model'])
+         if not args.eval and 'optimizer' in checkpoint and 'lr_scheduler' in checkpoint and 'epoch' in checkpoint:
+             optimizer.load_state_dict(checkpoint['optimizer'])
+             lr_scheduler.load_state_dict(checkpoint['lr_scheduler'])
+             args.start_epoch = checkpoint['epoch'] + 1
+     elif args.pretrained:
+-        checkpoint = torch.load(args.pretrained, map_location='cpu')
++        checkpoint = torch.load(args.pretrained, map_location='cpu', weights_only=False)
+         model_without_ddp.load_state_dict(checkpoint['model'], strict=False)
+ 
+     if args.eval:
+@@ -230,7 +255,14 @@ def main(args):
+             sampler_train.set_epoch(epoch)
+         train_stats = train_one_epoch(
+             model, criterion, data_loader_train, optimizer, device, epoch,
+-            args.clip_max_norm)
++            args.clip_max_norm, max_iters=args.max_train_iters,
++            status_cb=(lambda it, n, loss: write_status(args, epoch, it, n, loss, start_time)))
++        if args.max_train_iters:
++            print('Smoke test finished after {} iterations'.format(args.max_train_iters))
++            if args.output_dir:
++                utils.save_on_master({'model': model_without_ddp.state_dict(), 'epoch': epoch, 'args': args},
++                                     output_dir / 'smoke_checkpoint.pth')
++            return
+         lr_scheduler.step()
+         if args.output_dir:
+             checkpoint_paths = [output_dir / 'checkpoint.pth']
+@@ -247,7 +279,10 @@ def main(args):
+                 }, checkpoint_path)
+ 
+         if args.hoi:
+-            test_stats = evaluate_hoi(args.dataset_file, model, postprocessors, data_loader_val, args.subject_category_id, device)
++            if (epoch + 1) % args.eval_interval == 0 or epoch + 1 == args.epochs:
++                test_stats = evaluate_hoi(args.dataset_file, model, postprocessors, data_loader_val, args.subject_category_id, device)
++            else:
++                test_stats = {}
+             coco_evaluator = None
+         else:
+             test_stats, coco_evaluator = evaluate(
+@@ -262,6 +297,8 @@ def main(args):
+         if args.output_dir and utils.is_main_process():
+             with (output_dir / "log.txt").open("a") as f:
+                 f.write(json.dumps(log_stats) + "\n")
++            write_status(args, epoch + 1, 0, 1, train_stats.get('loss'), start_time,
++                         state='training' if epoch + 1 < args.epochs else 'train_done')
+ 
+             # for evaluation logs
+             if coco_evaluator is not None:
+diff --git a/util/misc.py b/util/misc.py
+index e6e40d3..8a28b66 100644
+--- a/util/misc.py
++++ b/util/misc.py
+@@ -24,7 +24,8 @@ from torch import Tensor
+ 
+ # needed due to empty tensor bug in pytorch and torchvision 0.5
+ import torchvision
+-if float(torchvision.__version__[:3]) < 0.7:
++from packaging.version import parse as parse_version
++if parse_version(torchvision.__version__) < parse_version("0.7"):
+     from torchvision.ops import _new_empty_tensor
+     from torchvision.ops.misc import _output_size
+ 
+@@ -424,7 +425,7 @@ def interpolate(input, size=None, scale_factor=None, mode="nearest", align_corne
+     This will eventually be supported natively by PyTorch, and this
+     class can go away.
+     """
+-    if float(torchvision.__version__[:3]) < 0.7:
++    if parse_version(torchvision.__version__) < parse_version("0.7"):
+         if input.numel() > 0:
+             return torch.nn.functional.interpolate(
+                 input, size, scale_factor, mode, align_corners

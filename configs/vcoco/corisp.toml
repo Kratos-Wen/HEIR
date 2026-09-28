@@ -1,0 +1,11 @@
+name = "CoRISP (V-COCO)"
+family = "corisp"
+checkpoint = "corisp_vcoco"  # entry in configs/checkpoints.toml (TODO: released from the CoRISP training cluster)
+# CoRISP is evaluated from the main branch of this repository (docs/REPRODUCTION.md there), at this commit:
+repository = "https://github.com/Kratos-Wen/HEIR"
+commit = "42327eced7b28ee7dcab3af67ba0634dcb92bfb4"
+assets = ["CORISP_WEIGHTS", "HDETR_CKPT", "VCOCO_ROOT", "VCOCO_OFFICIAL_ROOT", "VCOCO_PROTOTYPES", "VCOCO_ROLE_PROTOTYPES"]
+cache = "RESUME=$CORISP_CHECKPOINT bash scripts/run_vcoco.sh cache"
+score = "bash scripts/run_vcoco.sh score"
+score_sets = "bash scripts/run_vcoco.sh set-score"
+metrics = ["role-ap", "set-ap"]

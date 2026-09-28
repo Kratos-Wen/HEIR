@@ -1,0 +1,7 @@
+name = "SOV-STG-S"
+model = "sov-stg"            # directory under models/
+variant = "sov_stg_s"
+checkpoint = "sov_stg_s_heir"   # entry in configs/checkpoints.toml
+python = "sov-stg"            # environment in configs/paths.toml [python]
+assets = []
+metrics = ["role", "hoi", "sets-topk", "sets-map"]

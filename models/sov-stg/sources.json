@@ -1,0 +1,44 @@
+{
+  "SOV-STG": {
+    "url": "https://github.com/cjw2021/SOV-STG",
+    "commit": "d7ad01f4fb372fc2a98f3f947db1cc5f9dfa58fe",
+    "patch": "patches/SOV-STG.patch",
+    "verified_sha256": {
+      "convert_parameters_heir.py": "67a5a967bc502071255e35ed05ae2639c523aed8970c6f527a2938ae12ca51e2",
+      "datasets/__init__.py": "3fe586b25e671fc3168020610c4d274db1823f9b90d49e620d92d2f3aefc30fd",
+      "datasets/heir.py": "400a6b29c0a10a9561a2c096ca70c70fbd9e08053fbf8b357c26c7990a265283",
+      "engine.py": "642c8760b868500018062289e878625a242f8b554ac08db4627a67c00d0bc224",
+      "export_heir.py": "2625ab149e438a4390bf1d4e2e06ef986160f808db78941b9b32287fe3586234",
+      "generate_vcoco_official.py": "169e9082c1c69bf1cea61b3ee84697ca619657906047a254c0fd3c785787e55c",
+      "main.py": "1ef32fdb83dec66e0ed5fcf4ef16319833a834293cff73ff7c5b5cc5fced7fc0",
+      "option.py": "d6f7729a0c148ef6859d54ad22c04103dbac4afdb82faa815c7cc2829eb72246",
+      "slconfig/heir-sov-stg-l-r101.py": "0fa58e733573ccbe661d2a608482763afdca6143fe52c1aeecaf4ea73b9552dd",
+      "slconfig/vcoco-sov-stg-swin_l.py": "2c7950e4335e7d2e913963c8e82537bed477315e6fbf6ea9231f8da8f45fe076"
+    }
+  },
+  "SOV-STG-VLA": {
+    "url": "https://github.com/cjw2021/SOV-STG-VLA",
+    "commit": "64db7ca320c2feb3872eb8648731b5a4e0630ccf",
+    "patch": "patches/SOV-STG-VLA.patch",
+    "verified_sha256": {
+      "configs/models/blip2/blip2_pretrain.yaml": "927804f53952fe14ab53c421f3d4964e8079e271a54d12f66122b6423ed90faf",
+      "datasets_hoi/__init__.py": "f8ecf5a7dc1ab32a8c61cbe0454f1d9690cdf346d6c3712c834dbf160aa47f58",
+      "datasets_hoi/heir.py": "8356f685c5c6415e2f6a38cee4df361428e8d0d1b5e5ae6425ceffbfb9720165",
+      "datasets_hoi/vcoco.py": "74d64016bf1fc43e68be9cf19640c4360251910049d5168e04f9963c2c6e7cf8",
+      "engine.py": "a008eff07a37d8d0f160b8c39830190435e4b590b30c46a4fc267c5f81d41bd3",
+      "export_heir.py": "1734dd3d88b4da238594b0d2d8a26bfff6ec53d3ff80f54bb4a8616eb0c547dc",
+      "main.py": "bdc3aa43add922b1ba6e386da9612653d9fd8d5618c301a2938f742f01c648ae",
+      "models/detector/SOV_STG_VLA_BLIP2_HOI.py": "b2aff85f17f5b8f5e24fb34124ac69d9df6f6b8e94d46f28815fc70aba7878c3",
+      "models/encoder_decoder/BLIP2/base_model.py": "f5bd18ef4b99afc8b6b1f4b42718fde1fb9d8191fb8acf83657209a755d2d098",
+      "models/encoder_decoder/BLIP2/clip_vit.py": "890f453277b60a271b4d25a828d75af681bab592279f0d11330bf0e2589e4656",
+      "models/encoder_decoder/BLIP2/eva_vit.py": "a5c50fec7e86ebde70636bc0b330a946240670a224b788469270a012e3a98957",
+      "option.py": "be725b539188dee747f2b1e368493a536c0118c7dd4cae2c2c56a623331c85c8",
+      "slconfig/sov-stg-s-vla-blip2_heir.py": "38eb73b6f40c4334da0f0d28f58b0611e68f8b5eb6ac09065734dee9d0b1e0dd",
+      "tools/build_heir_text_labels.py": "2f4fadf9653a90d0d73c330ab19433f5d904dd3adaffa3425809b079b0cc67b4"
+    }
+  },
+  "CLIP": {
+    "url": "https://github.com/openai/CLIP",
+    "commit": "d05afc436d78f1c48dc0dbf8e5980a9d471f35f6"
+  }
+}

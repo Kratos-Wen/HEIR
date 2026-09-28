@@ -1,0 +1,3 @@
+Original reproduction adapters and evaluation tools are licensed under PolyForm Noncommercial 1.0.0. Third-party source files retain their own licenses and copyright notices. Model weights, datasets and external assets are not included and retain their providers' terms.
+
+Third-party baseline sources (QPIC, MUREN, SOV-STG, SOV-STG-VLA, GEN-VLKT, RLIPv2, OpenAI CLIP) are not included. Each model directory lists the upstream repositories and pinned commits in `sources.json`; its `sources` command clones them and applies the HEIR adapters in `patches/`. The checked-out sources and the files modified by these patches remain subject to the upstream projects' licenses and copyright notices.

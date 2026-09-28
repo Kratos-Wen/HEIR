@@ -1,0 +1,747 @@
+diff --git a/convert_parameters_heir.py b/convert_parameters_heir.py
+new file mode 100644
+index 0000000..dcd7be4
+--- /dev/null
++++ b/convert_parameters_heir.py
+@@ -0,0 +1,128 @@
++"""Build the SOV-STG HEIR init checkpoint from the official DN-Deformable-DETR R50 (50 ep, 49.5 AP).
++
++The official DN-DETR Google-Drive folder referenced by the SOV-STG README
++(drive/folders/1pIllR0VfSIqX8TmQy0PFNiPdp87j-78j, checkpoint0049.pth) is gone (HTTP 404, checked 2026-09-23).
++The same weights are published by IDEA-Research (DN-DETR authors) in detrex as
++`converted_dn_deformable_detr_r50_50ep.pth` (detrex-storage release v0.1.0), produced by
++detrex/projects/dn_deformable_detr/converter.py, which is a pure key rename except:
++  * class_embed.*   : 91 -> 80 rows (COCO ids)          -- not used here (object head re-initialised)
++  * label_enc       : 92 -> 81 rows, renamed label_encoder -- not used here (re-initialised)
++
++Step 1 inverts the detrex rename exactly -> DN-DETR (DAB-Deformable-DETR) key names.
++Step 2 applies upstream SOV-STG convert_parameters.py (DN-DETR -> SOV-STG) unchanged, except that
++the object classifier (class_embed.*) and the DN label embedding (label_enc) are dropped so that they are
++freshly initialised for 437 HEIR objects (upstream subsets them to the 80 HICO/COCO classes).
++"""
++import argparse
++import re
++
++import torch
++
++
++def detrex_to_dndetr(sd):
++    out = {}
++    for k, v in sd.items():
++        nk = k
++        if k.startswith('backbone.'):
++            nk = k[len('backbone.'):]
++            if nk.startswith('stem.'):
++                nk = nk[len('stem.'):]
++            for t in [1, 2, 3, 4]:
++                nk = nk.replace(f'res{t + 1}.', f'layer{t}.')
++            nk = nk.replace('shortcut.norm.', 'downsample.1.')
++            nk = nk.replace('shortcut.', 'downsample.0.')
++            for t in [1, 2, 3]:
++                nk = nk.replace(f'conv{t}.norm.', f'bn{t}.')
++            nk = 'backbone.0.body.' + nk
++        elif k.startswith('neck.'):
++            m = re.match(r'neck\.convs\.(\d)\.(conv|norm)\.(.*)', k)
++            if m:
++                nk = f'input_proj.{m.group(1)}.{0 if m.group(2) == "conv" else 1}.{m.group(3)}'
++            else:
++                m = re.match(r'neck\.extra_convs\.0\.(conv|norm)\.(.*)', k)
++                assert m, k
++                nk = f'input_proj.3.{0 if m.group(1) == "conv" else 1}.{m.group(2)}'
++        elif 'encoder.layers' in k:
++            nk = (k.replace('attentions.0.', 'self_attn.').replace('ffns.0.layers.0.0.', 'linear1.')
++                   .replace('ffns.0.layers.1.', 'linear2.').replace('norms.0.', 'norm1.').replace('norms.1.', 'norm2.'))
++        elif 'decoder.layers' in k:
++            nk = (k.replace('attentions.0.attn.', 'self_attn.').replace('attentions.1.', 'cross_attn.')
++                   .replace('ffns.0.layers.0.0.', 'linear1.').replace('ffns.0.layers.1.', 'linear2.')
++                   .replace('norms.0.', 'norm2.').replace('norms.1.', 'norm1.').replace('norms.2.', 'norm3.'))
++        elif k == 'transformer.level_embeds':
++            nk = 'transformer.level_embed'
++        elif k == 'label_encoder.weight':
++            nk = 'label_enc.weight'
++        assert nk not in out, nk
++        out[nk] = v
++    return out
++
++
++def dndetr_to_sovstg(model, num_queries=64, dec_n_points=8, enc_n_points=4):
++    """upstream convert_parameters.py main(), with the object head dropped (see module doc)."""
++    ps = {'model': dict(model)}
++    for k in list(ps['model'].keys()):
++        if 'decoder' in k:
++            ps['model'][k.replace('decoder', 'sub_decoder')] = ps['model'][k].clone()
++    for i in range(6):
++        # HEIR: drop COCO classifier instead of subsetting to 80 classes
++        ps['model'].pop(f'class_embed.{i}.weight')
++        ps['model'].pop(f'class_embed.{i}.bias')
++
++        dec_offsets_w = ps['model'][f'transformer.decoder.layers.{i}.cross_attn.sampling_offsets.weight'].clone()
++        dec_offsets_b = ps['model'][f'transformer.decoder.layers.{i}.cross_attn.sampling_offsets.bias'].clone()
++        dec_attention_weights_w = ps['model'][f'transformer.decoder.layers.{i}.cross_attn.attention_weights.weight'].clone()
++        dec_attention_weights_b = ps['model'][f'transformer.decoder.layers.{i}.cross_attn.attention_weights.bias'].clone()
++        enc_offsets_w = ps['model'][f'transformer.encoder.layers.{i}.self_attn.sampling_offsets.weight'].clone()
++        enc_offsets_b = ps['model'][f'transformer.encoder.layers.{i}.self_attn.sampling_offsets.bias'].clone()
++        enc_attention_weights_w = ps['model'][f'transformer.encoder.layers.{i}.self_attn.attention_weights.weight'].clone()
++        enc_attention_weights_b = ps['model'][f'transformer.encoder.layers.{i}.self_attn.attention_weights.bias'].clone()
++        dec_pattern = dec_n_points // 4
++        enc_pattern = enc_n_points // 4
++        for dname in ('decoder', 'sub_decoder'):
++            ps['model'][f'transformer.{dname}.layers.{i}.cross_attn.sampling_offsets.weight'] = torch.cat([dec_offsets_w] * dec_pattern)
++            ps['model'][f'transformer.{dname}.layers.{i}.cross_attn.sampling_offsets.bias'] = torch.cat([dec_offsets_b] * dec_pattern)
++            ps['model'][f'transformer.{dname}.layers.{i}.cross_attn.attention_weights.weight'] = torch.cat([dec_attention_weights_w] * dec_pattern)
++            ps['model'][f'transformer.{dname}.layers.{i}.cross_attn.attention_weights.bias'] = torch.cat([dec_attention_weights_b] * dec_pattern)
++        ps['model'][f'transformer.encoder.layers.{i}.self_attn.sampling_offsets.weight'] = torch.cat([enc_offsets_w] * enc_pattern)
++        ps['model'][f'transformer.encoder.layers.{i}.self_attn.sampling_offsets.bias'] = torch.cat([enc_offsets_b] * enc_pattern)
++        ps['model'][f'transformer.encoder.layers.{i}.self_attn.attention_weights.weight'] = torch.cat([enc_attention_weights_w] * enc_pattern)
++        ps['model'][f'transformer.encoder.layers.{i}.self_attn.attention_weights.bias'] = torch.cat([enc_attention_weights_b] * enc_pattern)
++        for j in range(3):
++            ps['model'][f'sub_bbox_embed.{i}.layers.{j}.weight'] = ps['model'][f'bbox_embed.{i}.layers.{j}.weight'].clone()
++            ps['model'][f'sub_bbox_embed.{i}.layers.{j}.bias'] = ps['model'][f'bbox_embed.{i}.layers.{j}.bias'].clone()
++
++    ps['model']['refpoint_obj_embed.weight'] = ps['model']['refpoint_embed.weight'].clone()[:num_queries]
++    ps['model']['refpoint_sub_embed.weight'] = ps['model']['refpoint_embed.weight'].clone()[:num_queries]
++    ps['model']['tgt_embed.weight'] = ps['model']['tgt_embed.weight'].clone()[:num_queries]
++    # HEIR: drop COCO DN label embedding (upstream: label_enc[obj_ids]); re-initialised for 437 classes
++    ps['model'].pop('label_enc.weight')
++    w = ps['model']['transformer.decoder.ref_point_head.layers.0.weight'].clone()
++    b = ps['model']['transformer.decoder.ref_point_head.layers.0.bias'].clone()
++    ps['model']['transformer.sub_decoder.ref_point_head.layers.0.weight'] = w
++    ps['model']['transformer.sub_decoder.ref_point_head.layers.0.bias'] = b
++    return ps
++
++
++def main():
++    ap = argparse.ArgumentParser()
++    ap.add_argument('--load_path', required=True, help='detrex converted_dn_deformable_detr_r50_50ep.pth')
++    ap.add_argument('--from_dndetr', action='store_true',
++                    help='load_path is already in DN-DETR key format (e.g. SOV-STG dn_dab_deformable_detr_swin_large.pth): skip step 1')
++    ap.add_argument('--dndetr_path', default='', help='optional: save reconstructed DN-DETR-format checkpoint')
++    ap.add_argument('--save_path', required=True)
++    ap.add_argument('--num_queries', type=int, default=64)
++    ap.add_argument('--dec_n_points', type=int, default=8)
++    ap.add_argument('--enc_n_points', type=int, default=4)
++    a = ap.parse_args()
++    sd = torch.load(a.load_path, map_location='cpu', weights_only=False)['model']
++    dn = sd if a.from_dndetr else detrex_to_dndetr(sd)
++    if a.dndetr_path:
++        torch.save({'model': dn}, a.dndetr_path)
++    ps = dndetr_to_sovstg(dn, a.num_queries, a.dec_n_points, a.enc_n_points)
++    torch.save(ps, a.save_path)
++    print('saved', a.save_path, len(ps['model']), 'tensors')
++
++
++if __name__ == '__main__':
++    main()
+diff --git a/datasets/__init__.py b/datasets/__init__.py
+index a4a5034..a33820b 100644
+--- a/datasets/__init__.py
++++ b/datasets/__init__.py
+@@ -15,6 +15,7 @@ import torch.utils.data
+ 
+ from .hico import build as build_hico
+ from .vcoco import build as build_vcoco
++from .heir import build as build_heir
+ 
+ 
+ def build_dataset(image_set, args):
+@@ -22,4 +23,6 @@ def build_dataset(image_set, args):
+         return build_hico(image_set, args)
+     if args.dataset_file == 'vcoco':
+         return build_vcoco(image_set, args)
++    if args.dataset_file == 'heir':
++        return build_heir(image_set, args)
+     raise ValueError(f'dataset {args.dataset_file} not supported')
+diff --git a/datasets/heir.py b/datasets/heir.py
+new file mode 100644
+index 0000000..4392e89
+--- /dev/null
++++ b/datasets/heir.py
+@@ -0,0 +1,151 @@
++# ------------------------------------------------------------------------
++# HEIR v1.0 dataset for SOV-STG (HICO-DET-style loader).
++# Mirrors datasets/hico.py (HICODetection) line by line:
++#   * same augmentations (make_hico_transforms: flip, ColorJitter(.4,.4,.4),
++#     multi-scale 480-800 / max 1333 with RandomSizeCrop branch; val: 800/1333),
++#   * same train sanity filter and same truncation of box lists to num_queries,
++#   * same multi-label pair targets (annotations of one (subject, object) pair are
++#     merged into one multi-hot interaction vector), same target keys, which are
++#     also the inputs of the STG denoising queries (obj_labels, verb_labels,
++#     sub_boxes, obj_boxes).
++# Differences to hico.py:
++#   * ids are already contiguous: objects 0..436 (person = 0), interactions
++#     0..224 (one per (verb, role) pair) -> no _valid_obj_ids/_valid_verb_ids remap;
++#   * no HICO_rare2015 hard-coded path;
++#   * val/test targets carry the HEIR image_id (str) for the JSONL export;
++#   * correct_mat = corre_heir.npy ([437 objects, 225 interactions]) transposed to
++#     HICO's [interaction, object] layout (HICOEvaluator indexes correct_mat[verb, obj]).
++# ------------------------------------------------------------------------
++import json
++from pathlib import Path
++
++import numpy as np
++import torch
++import torch.utils.data
++from PIL import Image
++
++from datasets.hico import make_hico_transforms
++
++NUM_OBJ = 437
++NUM_INTER = 225
++
++
++class HEIRDetection(torch.utils.data.Dataset):
++
++    def __init__(self, img_set, img_folder, anno_file, transforms, num_queries):
++        self.img_set = img_set
++        self.img_folder = Path(img_folder)
++        with open(anno_file, 'r') as f:
++            self.annotations = json.load(f)
++        self._transforms = transforms
++        self.num_queries = num_queries
++        self.num_verbs = NUM_INTER
++
++        if img_set == 'train':
++            self.ids = []
++            for idx, img_anno in enumerate(self.annotations):
++                for hoi in img_anno['hoi_annotation']:
++                    if hoi['subject_id'] >= len(img_anno['annotations']) or hoi['object_id'] >= len(img_anno['annotations']):
++                        break
++                else:
++                    self.ids.append(idx)
++        else:
++            self.ids = list(range(len(self.annotations)))
++
++    def __len__(self):
++        return len(self.ids)
++
++    def __getitem__(self, idx):
++        img_anno = self.annotations[self.ids[idx]]
++        img = Image.open(self.img_folder / img_anno['file_name']).convert('RGB')
++        w, h = img.size
++
++        annos = img_anno['annotations']
++        if self.img_set == 'train' and len(annos) > self.num_queries:
++            annos = annos[:self.num_queries]  # as hico.py
++
++        boxes = torch.as_tensor([obj['bbox'] for obj in annos], dtype=torch.float32).reshape(-1, 4)
++
++        target = {}
++        target['orig_size'] = torch.as_tensor([int(h), int(w)])
++        target['size'] = torch.as_tensor([int(h), int(w)])
++        if self.img_set == 'train':
++            classes = torch.tensor([(i, obj['category_id']) for i, obj in enumerate(annos)],
++                                   dtype=torch.int64).reshape(-1, 2)
++            boxes[:, 0::2].clamp_(min=0, max=w)
++            boxes[:, 1::2].clamp_(min=0, max=h)
++            keep = (boxes[:, 3] > boxes[:, 1]) & (boxes[:, 2] > boxes[:, 0])
++            boxes = boxes[keep]
++            classes = classes[keep]
++
++            target['boxes'] = boxes
++            target['labels'] = classes
++            target['iscrowd'] = torch.zeros((boxes.shape[0],), dtype=torch.int64)
++            target['area'] = (boxes[:, 2] - boxes[:, 0]) * (boxes[:, 3] - boxes[:, 1])
++
++            if self._transforms is not None:
++                img_0, target_0 = self._transforms[0](img, target)
++                img, target = self._transforms[1](img_0, target_0)
++
++            kept_box_indices = [int(label[0]) for label in target['labels']]
++            target['labels'] = target['labels'][:, 1]
++
++            obj_labels, verb_labels, sub_boxes, obj_boxes = [], [], [], []
++            sub_obj_pairs = []
++            for hoi in img_anno['hoi_annotation']:
++                if hoi['subject_id'] not in kept_box_indices or hoi['object_id'] not in kept_box_indices:
++                    continue
++                pair = (hoi['subject_id'], hoi['object_id'])
++                if pair in sub_obj_pairs:
++                    verb_labels[sub_obj_pairs.index(pair)][hoi['category_id']] = 1
++                else:
++                    sub_obj_pairs.append(pair)
++                    obj_labels.append(target['labels'][kept_box_indices.index(hoi['object_id'])])
++                    verb_label = [0] * self.num_verbs
++                    verb_label[hoi['category_id']] = 1
++                    verb_labels.append(verb_label)
++                    sub_boxes.append(target['boxes'][kept_box_indices.index(hoi['subject_id'])])
++                    obj_boxes.append(target['boxes'][kept_box_indices.index(hoi['object_id'])])
++            if len(sub_obj_pairs) == 0:
++                target['obj_labels'] = torch.zeros((0,), dtype=torch.int64)
++                target['verb_labels'] = torch.zeros((0, self.num_verbs), dtype=torch.float32)
++                target['sub_boxes'] = torch.zeros((0, 4), dtype=torch.float32)
++                target['obj_boxes'] = torch.zeros((0, 4), dtype=torch.float32)
++            else:
++                target['obj_labels'] = torch.stack(obj_labels)
++                target['verb_labels'] = torch.as_tensor(verb_labels, dtype=torch.float32)
++                target['sub_boxes'] = torch.stack(sub_boxes)
++                target['obj_boxes'] = torch.stack(obj_boxes)
++        else:
++            target['boxes'] = boxes
++            target['labels'] = torch.tensor([obj['category_id'] for obj in annos], dtype=torch.int64)
++            target['id'] = idx
++            target['file_name'] = img_anno['file_name']
++            target['image_id'] = str(img_anno['image_id'])
++
++            if self._transforms is not None:
++                img, _ = self._transforms(img, None)
++
++            hois = [(hoi['subject_id'], hoi['object_id'], hoi['category_id']) for hoi in img_anno['hoi_annotation']]
++            target['hois'] = torch.as_tensor(hois, dtype=torch.int64).reshape(-1, 3)
++
++        return img, target
++
++    def load_correct_mat(self, path):
++        m = np.load(path)
++        assert m.shape == (NUM_OBJ, NUM_INTER), m.shape
++        self.correct_mat = m.T.astype(np.float64)  # [interaction, object] like corre_hico.npy
++
++
++def build(image_set, args):
++    root = Path(args.hoi_path)
++    assert root.exists(), f'provided HOI path {root} does not exist'
++    assert args.num_obj_classes == NUM_OBJ and args.num_verb_classes == NUM_INTER
++    split = {'train': 'train', 'val': 'val', 'test': 'test'}[image_set]
++    anno_file = root / 'annotations' / f'{split}_heir.json'
++    dataset = HEIRDetection(image_set if image_set == 'train' else 'val', root / 'images', anno_file,
++                            transforms=make_hico_transforms('train' if image_set == 'train' else 'val'),
++                            num_queries=args.num_queries)
++    if image_set != 'train':
++        dataset.load_correct_mat(root / 'annotations' / 'corre_heir.npy')
++    return dataset
+diff --git a/engine.py b/engine.py
+index 8b1d15b..be9413b 100644
+--- a/engine.py
++++ b/engine.py
+@@ -29,6 +29,7 @@ import copy
+ from loguru import logger
+ import numpy as np
+ import math
++import contextlib
+ 
+ 
+ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
+@@ -49,10 +50,24 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
+     if not wo_class_error:
+         metric_logger.add_meter('class_error', utils.SmoothedValue(window_size=1, fmt='{value:.2f}'))
+     header = 'Epoch: [{}]'.format(epoch)
+-    print_freq = 10
++    print_freq = getattr(args, 'print_freq', 10)
++    # HEIR: gradient accumulation (global batch = world_size x batch_size x accum_steps).
++    # Each micro-batch loss is divided by K; DDP gradient sync only on the last micro-batch;
++    # clipping + optimizer step on the accumulated gradient. A trailing incomplete group
++    # at the end of an epoch is dropped.
++    K = max(1, getattr(args, 'accum_steps', 1))
++    max_iters = getattr(args, 'max_iters_per_epoch', 0)
++    n_micro = len(data_loader)
++    if max_iters:
++        n_micro = min(n_micro, max_iters)
++    n_micro_used = (n_micro // K) * K
++    micro = 0
++    optimizer.zero_grad()
+ 
+     _cnt = 0
+     for samples, targets in metric_logger.log_every(data_loader, print_freq, header):
++        if _cnt >= n_micro_used:
++            break
+ 
+         samples = samples.to(device)
+         targets = [{k: v.to(device) for k, v in t.items() if k != 'file_name'} for t in targets]
+@@ -99,31 +114,36 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
+             run.log(loss_dict_reduced_unscaled)
+             run.log({'loss': loss_value, 'plain_loss': plain_loss_value, 'dn_loss': dn_loss_value})
+ 
+-        bug_count = 0
+         if not math.isfinite(loss_value):
+-            print("Loss is {}, stopping training".format(loss_value))
++            # upstream skips the batch; loss_value is all-reduced, so every rank skips together.
++            # HEIR: also discard the partially accumulated group.
++            print("Loss is {}, skipping batch".format(loss_value))
+             print(loss_dict_reduced)
+             optimizer.zero_grad()
+-            bug_count = bug_count + 1
+-            if bug_count > 5:
+-                sys.exit(1)
++            micro -= micro % K
++            _cnt += 1
+             continue
+-        # amp backward function
+-        if args.amp:
+-            optimizer.zero_grad()
+-            scaler.scale(losses).backward()
+-            if max_norm > 0:
+-                scaler.unscale_(optimizer)
+-                torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm)
+-            scaler.step(optimizer)
+-            scaler.update()
+-        else:
+-            # original backward function
++        micro += 1
++        _cnt += 1
++        last_micro = (micro % K == 0)
++        sync_ctx = model.no_sync() if (K > 1 and not last_micro and hasattr(model, 'no_sync')) else contextlib.nullcontext()
++        with sync_ctx:
++            if args.amp:
++                scaler.scale(losses / K).backward()
++            else:
++                (losses / K).backward()
++        if last_micro:
++            if args.amp:
++                if max_norm > 0:
++                    scaler.unscale_(optimizer)
++                    torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm)
++                scaler.step(optimizer)
++                scaler.update()
++            else:
++                if max_norm > 0:
++                    torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm)
++                optimizer.step()
+             optimizer.zero_grad()
+-            losses.backward()
+-            if max_norm > 0:
+-                torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm)
+-            optimizer.step()
+         metric_logger.update(loss=loss_value, plain_loss=plain_loss_value, dn_loss=dn_loss_value)
+         if 'obj_class_error' in loss_dict_reduced:
+             metric_logger.update(obj_class_error=loss_dict_reduced['obj_class_error'])
+@@ -135,7 +155,6 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
+         metric_logger.update(lr=optimizer.param_groups[0]["lr"])
+         metric_logger.update(dn_dy_weight=dn_dy_coef)
+         metric_logger.update(dn_drop=dn_drop_weight)
+-        _cnt += 1
+         if args.debug:
+             if _cnt % 15 == 0:
+                 print("BREAK!"*5)
+diff --git a/export_heir.py b/export_heir.py
+new file mode 100644
+index 0000000..8bdc773
+--- /dev/null
++++ b/export_heir.py
+@@ -0,0 +1,184 @@
++"""Export SOV-STG predictions on HEIR val/test as JSONL for the shared HEIR scorer.
++
++Post-processing = SOV-STG's HICO-DET protocol (engine.evaluate_hoi -> models/detector/SOV_STG.PostProcessHOI
++-> datasets/hico_eval.HICOEvaluator), unchanged:
++  * PostProcessHOI: obj score = max sigmoid over the 437 object logits (focal-loss head, no no-object class),
++    obj label = argmax; interaction score = sigmoid(verb logit) * obj score; subject label = person (0);
++    boxes cxcywh -> xyxy scaled to original image size (pixels).
++  * every (query, interaction) pair is a candidate; scores are multiplied by the train co-occurrence mask
++    correct_mat[interaction, object label] (corre_heir.npy transposed; HICOEvaluator: corre_hico.npy);
++  * keep top-100 per image (HICOEvaluator.max_hois), then triplet pairwise NMS
++    (use_nms True, nms_thresh 0.7, nms_alpha 1.0, nms_beta 0.5 from slconfig/hoi_base_setting.py).
++--also_nomask writes a second file without the co-occurrence mask (reference only).
++
++Output line: {"image_id", "boxes" (original pixels, xyxy), "labels", "box_scores",
++"hois": [{"subject_id","object_id","category_id","score"}]}; one line per split image in split
++order; images beyond --limit are written with empty predictions.
++box_scores: object score for object boxes; SOV-STG has no subject classifier, so subject boxes get 1.0.
++"""
++import argparse
++import json
++import os
++import sys
++import time
++from pathlib import Path
++
++import numpy as np
++import torch
++
++sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
++
++import util.misc as utils  # noqa: E402
++from datasets import build_dataset  # noqa: E402
++from models import build_model  # noqa: E402
++
++
++def pairwise_nms(subs, objs, scores, thres, alpha, beta):
++    # verbatim logic of HICOEvaluator.pairwise_nms
++    sx1, sy1, sx2, sy2 = subs[:, 0], subs[:, 1], subs[:, 2], subs[:, 3]
++    ox1, oy1, ox2, oy2 = objs[:, 0], objs[:, 1], objs[:, 2], objs[:, 3]
++    sub_areas = (sx2 - sx1 + 1) * (sy2 - sy1 + 1)
++    obj_areas = (ox2 - ox1 + 1) * (oy2 - oy1 + 1)
++    order = scores.argsort()[::-1]
++    keep = []
++    while order.size > 0:
++        i = order[0]
++        keep.append(i)
++        sw = np.maximum(0.0, np.minimum(sx2[i], sx2[order[1:]]) - np.maximum(sx1[i], sx1[order[1:]]) + 1)
++        sh = np.maximum(0.0, np.minimum(sy2[i], sy2[order[1:]]) - np.maximum(sy1[i], sy1[order[1:]]) + 1)
++        sub_inter = sw * sh
++        sub_union = sub_areas[i] + sub_areas[order[1:]] - sub_inter
++        ow = np.maximum(0.0, np.minimum(ox2[i], ox2[order[1:]]) - np.maximum(ox1[i], ox1[order[1:]]) + 1)
++        oh = np.maximum(0.0, np.minimum(oy2[i], oy2[order[1:]]) - np.maximum(oy1[i], oy1[order[1:]]) + 1)
++        obj_inter = ow * oh
++        obj_union = obj_areas[i] + obj_areas[order[1:]] - obj_inter
++        ovr = np.power(sub_inter / sub_union, alpha) * np.power(obj_inter / obj_union, beta)
++        order = order[np.where(ovr <= thres)[0] + 1]
++    return keep
++
++
++def image_record(image_id, res, box_scores, correct_mat, args, max_hois):
++    boxes = res['boxes'].numpy()
++    labels = res['labels'].numpy()
++    vs = res['verb_scores'].numpy().astype(np.float64)  # [Q, V]
++    sub_ids = res['sub_ids'].numpy()
++    obj_ids = res['obj_ids'].numpy()
++    Q, V = vs.shape
++    verb_labels = np.tile(np.arange(V), (Q, 1)).ravel()
++    s_ids = np.tile(sub_ids, (V, 1)).T.ravel()
++    o_ids = np.tile(obj_ids, (V, 1)).T.ravel()
++    scores = vs.ravel()
++    if correct_mat is not None:
++        scores = scores * correct_mat[verb_labels, labels[o_ids]]
++    order = np.argsort(-scores, kind='stable')[:max_hois]  # == python stable sort, reverse=True
++    s_ids, o_ids, verb_labels, scores = s_ids[order], o_ids[order], verb_labels[order], scores[order]
++    if args.use_nms and len(order):
++        keep_all = []
++        trip = {}
++        for k in range(len(order)):
++            trip.setdefault((labels[s_ids[k]], labels[o_ids[k]], verb_labels[k]), []).append(k)
++        for idx in trip.values():
++            idx = np.array(idx)
++            kk = pairwise_nms(boxes[s_ids[idx]], boxes[o_ids[idx]], scores[idx], args.nms_thresh, args.nms_alpha, args.nms_beta)
++            keep_all.extend(idx[kk].tolist())
++        keep_all = sorted(keep_all)
++        s_ids, o_ids, verb_labels, scores = s_ids[keep_all], o_ids[keep_all], verb_labels[keep_all], scores[keep_all]
++    used = sorted(set(s_ids.tolist()) | set(o_ids.tolist()))
++    remap = {b: i for i, b in enumerate(used)}
++    return {
++        'image_id': image_id,
++        'boxes': [[round(float(x), 2) for x in boxes[b]] for b in used],
++        'labels': [int(labels[b]) for b in used],
++        'box_scores': [round(float(box_scores[b]), 6) for b in used],
++        'hois': [{'subject_id': remap[int(s)], 'object_id': remap[int(o)], 'category_id': int(v), 'score': float(sc)}
++                 for s, o, v, sc in zip(s_ids, o_ids, verb_labels, scores)],
++    }
++
++
++def main():
++    ap = argparse.ArgumentParser()
++    ap.add_argument('--checkpoint', required=True)
++    ap.add_argument('--split', choices=('val', 'test'), required=True)
++    ap.add_argument('--output', required=True)
++    ap.add_argument('--hoi_path', required=True)
++    ap.add_argument('--batch_size', type=int, default=4)
++    ap.add_argument('--num_workers', type=int, default=4)
++    ap.add_argument('--limit', type=int, default=0, help='only run the first N images (others empty)')
++    ap.add_argument('--max_hois', type=int, default=100, help='HICOEvaluator.max_hois')
++    ap.add_argument('--also_nomask', action='store_true')
++    ap.add_argument('--correct_mat_path', default='',
++                    help='override the co-occurrence mask: bool [437 objects, 225 interactions] .npy in corre_heir.npy '
++                         'layout (e.g. data/semantic10072/corre_semantic10072.npy); applied exactly where corre_heir.npy is')
++    ap.add_argument('--check_only', action='store_true', help='build dataset + mask, print summary, no model/GPU')
++    a = ap.parse_args()
++
++    if a.check_only:
++        import hashlib
++        from types import SimpleNamespace
++        ck_args = SimpleNamespace(dataset_file='heir', hoi_path=a.hoi_path, num_obj_classes=437, num_verb_classes=225, num_queries=64)
++        ds = build_dataset(image_set=a.split, args=ck_args)
++        if a.correct_mat_path:
++            ds.load_correct_mat(a.correct_mat_path)
++        cm = ds.correct_mat
++        print('check_only: split', a.split, 'images', len(ds), 'correct_mat', cm.shape, cm.dtype, 'allowed', int(cm.sum()),
++              'source', a.correct_mat_path or 'corre_heir.npy',
++              'sha256', hashlib.sha256(open(a.correct_mat_path or os.path.join(a.hoi_path, 'annotations/corre_heir.npy'), 'rb').read()).hexdigest())
++        return
++
++    ckpt = torch.load(a.checkpoint, map_location='cpu', weights_only=False)
++    args = ckpt['args']
++    args.hoi_path = a.hoi_path
++    args.distributed = False
++    args.device = 'cuda'
++    device = torch.device('cuda')
++    torch.manual_seed(args.seed)
++
++    model, _, postprocessors = build_model(args)
++    info = model.load_state_dict(ckpt['model'], strict=True)
++    print('load:', info, 'epoch', ckpt.get('epoch'), flush=True)
++    model.to(device).eval()
++
++    ds = build_dataset(image_set=a.split, args=args)
++    n = len(ds) if not a.limit else min(a.limit, len(ds))
++    sub = torch.utils.data.Subset(ds, list(range(n)))
++    loader = torch.utils.data.DataLoader(sub, batch_size=a.batch_size, shuffle=False, drop_last=False,
++                                         collate_fn=utils.collate_fn, num_workers=a.num_workers)
++    if a.correct_mat_path:
++        ds.load_correct_mat(a.correct_mat_path)  # same transpose to [interaction, object] as corre_heir.npy
++        print('correct_mat from', a.correct_mat_path, 'allowed', int(ds.correct_mat.sum()), flush=True)
++    correct_mat = ds.correct_mat
++    records = {'mask': [], 'nomask': []}
++    t0 = time.time()
++    with torch.no_grad():
++        for bi, (samples, targets) in enumerate(loader):
++            samples = samples.to(device)
++            outputs, _ = model(samples, dn_args=(0,))  # as engine.evaluate_hoi
++            orig_sizes = torch.stack([t['orig_size'] for t in targets]).to(device)
++            results = postprocessors['hoi'](outputs, orig_sizes)
++            obj_scores = outputs['pred_obj_logits'].sigmoid().max(-1)[0].cpu()
++            for t, res, osc in zip(targets, results, obj_scores):
++                box_scores = torch.cat([torch.ones_like(osc), osc]).numpy()
++                records['mask'].append(image_record(t['image_id'], res, box_scores, correct_mat, args, a.max_hois))
++                if a.also_nomask:
++                    records['nomask'].append(image_record(t['image_id'], res, box_scores, None, args, a.max_hois))
++            if bi % 100 == 0:
++                print(f'[{a.split}] {bi * a.batch_size}/{n} images, {time.time() - t0:.1f}s', flush=True)
++
++    all_ids = [str(x['image_id']) for x in ds.annotations]
++    for kind, recs in records.items():
++        if kind == 'nomask' and not a.also_nomask:
++            continue
++        out = Path(a.output) if kind == 'mask' else Path(str(a.output).replace('.jsonl', '_nomask.jsonl'))
++        out.parent.mkdir(parents=True, exist_ok=True)
++        assert [r['image_id'] for r in recs] == all_ids[:n]
++        with open(out, 'w') as f:
++            for r in recs:
++                f.write(json.dumps(r) + '\n')
++            for iid in all_ids[n:]:
++                f.write(json.dumps({'image_id': iid, 'boxes': [], 'labels': [], 'box_scores': [], 'hois': []}) + '\n')
++        print('wrote', out, len(all_ids), 'lines;', n, 'with predictions')
++    print(f'export done in {time.time() - t0:.1f}s ({n / max(1e-6, time.time() - t0):.2f} img/s)')
++
++
++if __name__ == '__main__':
++    main()
+diff --git a/generate_vcoco_official.py b/generate_vcoco_official.py
+index dd97d61..b956c8f 100644
+--- a/generate_vcoco_official.py
++++ b/generate_vcoco_official.py
+@@ -218,7 +218,7 @@ def main(args):
+                                  drop_last=False, collate_fn=utils.collate_fn, num_workers=args.num_workers)
+ 
+     model, _, _ = build_model(args)
+-    checkpoint = torch.load(args.resume, map_location='cpu')
++    checkpoint = torch.load(args.resume, map_location='cpu', weights_only=False)
+     model.load_state_dict(checkpoint['model'])
+ 
+     model.cuda()
+diff --git a/main.py b/main.py
+index 12452df..0636e2a 100644
+--- a/main.py
++++ b/main.py
+@@ -28,7 +28,10 @@ from models import build_model
+ from util.slconfig import SLConfig
+ from copy import deepcopy
+ import json
+-import wandb
++try:
++    import wandb
++except ImportError:  # HEIR: wandb not installed / not used
++    wandb = None
+ 
+ 
+ def build_model_main(args):
+@@ -153,7 +156,7 @@ def main(args):
+ 
+ 
+     if args.frozen_weights is not None:
+-        checkpoint = torch.load(args.frozen_weights, map_location='cpu')
++        checkpoint = torch.load(args.frozen_weights, map_location='cpu', weights_only=False)
+         model_without_ddp.detr.load_state_dict(checkpoint['model'])
+ 
+     output_dir = Path(args.output_dir)
+@@ -166,19 +169,33 @@ def main(args):
+             checkpoint = torch.hub.load_state_dict_from_url(
+                 args.resume, map_location='cpu', check_hash=True)
+         else:
+-            checkpoint = torch.load(args.resume, map_location='cpu')
+-        model_without_ddp.load_state_dict(checkpoint['model'], strict=False)
++            checkpoint = torch.load(args.resume, map_location='cpu', weights_only=False)
++        info = model_without_ddp.load_state_dict(checkpoint['model'], strict=False)
++        if utils.get_rank() == 0:
++            logger.info('resume load: missing {} unexpected {}'.format(info.missing_keys, info.unexpected_keys))
+         if not args.eval and 'optimizer' in checkpoint and 'lr_scheduler' in checkpoint and 'epoch' in checkpoint:
+             optimizer.load_state_dict(checkpoint['optimizer'])
+             lr_scheduler.load_state_dict(checkpoint['lr_scheduler'])
+             args.start_epoch = checkpoint['epoch'] + 1
++            if utils.get_rank() == 0:
++                logger.info('resumed optimizer/lr_scheduler, start_epoch={}'.format(args.start_epoch))
+ 
+             if args.drop_lr_now:
+                 for param_group in optimizer.param_groups:
+                     param_group['lr'] = param_group['lr'] * 0.1
+ 
++    # HEIR: model-only init from the converted DN-Deformable-DETR checkpoint (upstream passes the
++    # same converted file via --resume; it has no optimizer/epoch so only the model is loaded).
++    if not args.resume and args.init_checkpoint:
++        init_sd = torch.load(args.init_checkpoint, map_location='cpu', weights_only=False)['model']
++        info = model_without_ddp.load_state_dict(init_sd, strict=False)
++        if utils.get_rank() == 0:
++            logger.info('init from {}\nmissing keys ({}): {}\nunexpected keys ({}): {}'.format(
++                args.init_checkpoint, len(info.missing_keys), info.missing_keys,
++                len(info.unexpected_keys), info.unexpected_keys))
++
+     if not args.resume and args.pretrain_model_path:
+-        checkpoint = torch.load(args.pretrain_model_path, map_location='cpu')['model']
++        checkpoint = torch.load(args.pretrain_model_path, map_location='cpu', weights_only=False)['model']
+         model_without_ddp.load_state_dict(checkpoint, strict=True)
+ 
+     if args.eval:
+@@ -214,6 +231,24 @@ def main(args):
+                     'epoch': epoch,
+                     'args': args,
+                 }, checkpoint_path)
++        if args.skip_epoch_eval:
++            # HEIR: no in-loop evaluation / best-checkpoint selection; save last + final epoch.
++            if args.output_dir != '':
++                ck = {'model': model_without_ddp.state_dict(), 'optimizer': optimizer.state_dict(),
++                      'lr_scheduler': lr_scheduler.state_dict(), 'epoch': epoch, 'args': args}
++                if utils.is_main_process():
++                    tmp = output_dir / 'checkpoint_last.pth.tmp'
++                    torch.save(ck, tmp)
++                    os.replace(tmp, output_dir / 'checkpoint_last.pth')
++                    if epoch + 1 == args.epochs:
++                        torch.save(ck, output_dir / f'checkpoint{epoch:04}.pth')
++            log_stats = {**{f'{k}': v for k, v in train_stats.items()}, 'epoch': epoch, 'n_parameters': n_parameters}
++            if args.output_dir and utils.is_main_process():
++                with (output_dir / "log.txt").open("a") as f:
++                    f.write(json.dumps(log_stats) + "\n")
++            if args.distributed:
++                torch.distributed.barrier()
++            continue
+         # Evaluate first and then save the checkpoint to prevent the checkpoint from being lost due to an accident during evaluate
+         test_stats = evaluate_hoi(args.dataset_file, model, postprocessors, data_loader_val, args.subject_category_id, device, output_dir, epoch, args)
+ 
+diff --git a/option.py b/option.py
+index f4bf93f..2a33ef5 100644
+--- a/option.py
++++ b/option.py
+@@ -19,7 +19,7 @@ class Options:
+             'in xxx=yyy format will be merged into config file.')
+ 
+         # dataset parameters
+-        parser.add_argument('--dataset_file', default='hico',choices=['hico', 'vcoco'])
++        parser.add_argument('--dataset_file', default='hico',choices=['hico', 'vcoco', 'heir'])
+         parser.add_argument('--hoi_path', default='./data/hico_det', type=str)
+         parser.add_argument('--diff_path', default='./data/hico_diffusion', type=str)
+         parser.add_argument('--num_verb_classes', type=int, default=117,
+@@ -63,6 +63,13 @@ class Options:
+         parser.add_argument('--rank', default=0, type=int,
+                             help='number of distributed processes')
+         parser.add_argument("--local_rank", type=int, help='local rank for DistributedDataParallel')
++        # HEIR adaptation
++        parser.add_argument('--init_checkpoint', type=str, default='',
++                            help='model-only init (converted DN-Deformable-DETR); upstream passes it via --resume')
++        parser.add_argument('--accum_steps', default=1, type=int, help='gradient accumulation micro-batches per step')
++        parser.add_argument('--max_iters_per_epoch', default=0, type=int, help='smoke tests only (micro-batches)')
++        parser.add_argument('--print_freq', default=10, type=int)
++        parser.add_argument('--skip_epoch_eval', action='store_true', help='no in-loop evaluation')
+         parser.add_argument('--amp', action='store_true',
+                             help="Train with mixed precision")
+         return parser
+\ No newline at end of file
+diff --git a/slconfig/heir-sov-stg-l-r101.py b/slconfig/heir-sov-stg-l-r101.py
+new file mode 100644
+index 0000000..1e965b8
+--- /dev/null
++++ b/slconfig/heir-sov-stg-l-r101.py
+@@ -0,0 +1,2 @@
++_base_ = ['vcoco-sov-stg-l.py']
++# SOV-STG-L (R101) upstream V-COCO architecture/recipe, trained on HEIR (437 nouns, 225 interactions)
+diff --git a/slconfig/vcoco-sov-stg-swin_l.py b/slconfig/vcoco-sov-stg-swin_l.py
+new file mode 100644
+index 0000000..580b667
+--- /dev/null
++++ b/slconfig/vcoco-sov-stg-swin_l.py
+@@ -0,0 +1,2 @@
++_base_ = ['sov-stg-swin_l.py']
++# SOV-STG-Swin-L upstream recipe (lr 1e-4, backbone 1e-5, dn 4, dec 6, dec_n_points 8, 30 ep, drop 20), dataset V-COCO

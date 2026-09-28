@@ -1,0 +1,7 @@
+name = "RLIPv2 (Swin-L)"
+model = "rlipv2"            # directory under models/
+variant = "rlipv2_swinl"
+checkpoint = "rlipv2_swinl_heir"   # entry in configs/checkpoints.toml
+python = "rlipv2"            # environment in configs/paths.toml [python]
+assets = ["ROBERTA_BASE"]
+metrics = ["role", "hoi", "sets-topk", "sets-map"]

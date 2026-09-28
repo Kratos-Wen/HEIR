@@ -1,0 +1,19 @@
+{
+  "RLIPv2": {
+    "url": "https://github.com/JacobYuan7/RLIPv2",
+    "commit": "2adae6039c98e3110c47fe7de5bff6abe5baeaf2",
+    "patch": "patches/RLIPv2.patch",
+    "verified_sha256": {
+      "datasets/__init__.py": "cbf1325214ce40040fee3160c53ca1a2b2130f54056afbd5fbcfc0e8e06b78e1",
+      "datasets/heir.py": "f33cc27362fdb5bef147e71758f4c1c0c0c7e90261e9bdd9d507f1473817037b",
+      "datasets/vcoco.py": "915ca6649d881105b7ac2ac13116269f94e15c42e6b10794fd000064fe87e368",
+      "engine.py": "d79ec4b3e00092d0a46ff3f67c242a62889ccd54804daca09dcae7d7d7da53f1",
+      "export_heir.py": "1dbb02993b62c4a02c5966730c32832701fa9d235bb90a27b5af66312cbec809",
+      "generate_vcoco_official.py": "3c6efc5437c49d0d98f484a691e5d58d2fc91f2ded34e7165088d38eab8d0614",
+      "main.py": "f7239752721802584d55e6001ee2ba9595aebeb8b2f68c96b74b40eac6c7600c",
+      "models/dab_deformable/deformable_transformer.py": "18e84710a91cf67c772a4e5fec1e846b62ad9ece8ecb911ba82f739341b8d90e",
+      "models/fuse_helper.py": "2d6bbcfb03276959bc8a29067f9f9fb859024ec189a329ca37938112bb5a572f",
+      "models/transformer.py": "d1e527f49d51967c802e723cf7d75bc1771275d1b994407cab26bbdd1f31d5fc"
+    }
+  }
+}

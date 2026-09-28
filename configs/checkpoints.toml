@@ -1,0 +1,181 @@
+# Released checkpoints. Files are hosted on Google Drive; evaluate.py downloads a file with gdown when it is not in
+# the local checkpoint cache and always verifies its SHA-256. Baseline checkpoints hold model weights, the final epoch
+# and path-free training arguments (tools/strip_checkpoint.py).
+
+[qpic_r50_heir]
+model = "QPIC (ResNet-50)"
+file = "qpic_r50_heir.pth"
+bytes = 167811819
+sha256 = "e7a4eb7a80742223f31a09da1d2171ad191af13334ddd8335a4f8f0b883e94f1"
+url = "TODO: Google Drive link"
+
+[qpic_r101_heir]
+model = "QPIC (ResNet-101)"
+file = "qpic_r101_heir.pth"
+bytes = 244079230
+sha256 = "ea0047577794bcd0aadaf772c17ce3a138ea3a3997eb10cbb0b85ca6bdc6cbe3"
+url = "TODO: Google Drive link"
+
+[muren_heir]
+model = "MUREN"
+file = "muren_heir.pth"
+bytes = 302029833
+sha256 = "8e86e9368b3cf630d38ebd01422ec15b55e8a7d8424b5686ab7874cca3223a2e"
+url = "TODO: Google Drive link"
+
+[gen_vlkt_s_heir]
+model = "GEN-VLKT-S"
+file = "gen_vlkt_s_heir.pth"
+bytes = 189230191
+sha256 = "9f490abffd824981fc64cbd54c8839dcf981d20c0ef6770f00e38a981c3474b6"
+url = "TODO: Google Drive link"
+
+[gen_vlkt_l_heir]
+model = "GEN-VLKT-L"
+file = "gen_vlkt_l_heir.pth"
+bytes = 303430449
+sha256 = "c412091540a15925fdefb720d79d04187470a1fdd157d728dbffbaf361199b29"
+url = "TODO: Google Drive link"
+
+[rlipv2_swint_heir]
+model = "RLIPv2 (Swin-T)"
+file = "rlipv2_swint_heir.pth"
+bytes = 857449147
+sha256 = "af8f6e04c3c82d86a4f5a8aba8fc2414fa45b8b0386a1e6da655d62ea3c9f528"
+url = "TODO: Google Drive link"
+
+[rlipv2_swinl_heir]
+model = "RLIPv2 (Swin-L)"
+file = "rlipv2_swinl_heir.pth"
+bytes = 1536111323
+sha256 = "24604c599e7987eebe20b0b84cbad6aaa8b8f1f44b3bbec54dc7da4dac1f3a30"
+url = "TODO: Google Drive link"
+
+[sov_stg_s_heir]
+model = "SOV-STG-S"
+file = "sov_stg_s_heir.pth"
+bytes = 218103944
+sha256 = "ca140e7cff7aad60b34d0c453227a4c1017f1bb46f7d3b2d40dd0447543fb91b"
+url = "TODO: Google Drive link"
+
+[sov_stg_l_heir]
+model = "SOV-STG-L (ResNet-101)"
+file = "sov_stg_l_heir.pth"
+bytes = 351792305
+sha256 = "f992b99f314af5ea66518511a46d3efc643219e6c5ca4e2cb4de17607e2fe91f"
+url = "TODO: Google Drive link"
+
+[sov_stg_swinl_heir]
+model = "SOV-STG (Swin-L)"
+file = "sov_stg_swinl_heir.pth"
+bytes = 967588156
+sha256 = "0965f59d289d2d882135af7712cb5f991b6a142034a04235fd7b0d252d0ecb56"
+url = "TODO: Google Drive link"
+
+[sov_stg_vla_s_heir]
+model = "SOV-STG-VLA-S"
+file = "sov_stg_vla_s_heir.pth"
+bytes = 3104838507
+sha256 = "1471b0d1ac69a8830b5e70a3678dca517620db8c2a968729f412b15a594813e7"
+url = "TODO: Google Drive link"
+
+
+# HEIR assets published with the release.
+
+[heir_support]
+model = "HEIR support table (10,072 action--noun--role combinations)"
+file = "heir_support.csv"
+bytes = 320741
+sha256 = "8448ed4fe476462dd8eca17eb5f763b84ae8def7169602210d60c29a1d114b4b"
+url = "TODO: Google Drive link"  # used by every baseline
+
+[corisp_heir_detector]
+model = "CoRISP HEIR detector (H-DETR Swin-L)"
+file = "HEIR_DETECTOR_best.pth"
+bytes = 874635490
+sha256 = "51437e90270899c18a2fbb90e785b4cc5f552060cf25d7d007489afca4918acf"
+url = "TODO: Google Drive link"  # pinned in main configs/required_assets.json
+
+[corisp_heir_prototypes]
+model = "CoRISP HEIR DINO.txt prototypes"
+file = "HEIR_PROTOTYPES.pt"
+bytes = 4591017
+sha256 = "28cc193618258d1c8c4d2b38af562a6c7bdbd4001979fc092dd96e3f04bca522"
+url = "TODO: Google Drive link"  # pinned in main corisp_heir/assets.py
+
+[corisp_heir_compatibility]
+model = "CoRISP HEIR compatibility inventory"
+file = "compatibility.json"
+bytes = 286502
+sha256 = "51188a19b8fc21ae97e58c969f16e4e1e6e46961f8c4e9272bf3f1683035bde8"
+url = "TODO: Google Drive link"  # bound by the CoRISP HEIR checkpoint
+
+[corisp_heir]
+model = "CoRISP (HEIR)"
+file = "TODO"
+bytes = 0
+sha256 = "TODO"
+url = "TODO: Google Drive link, uploaded from the CoRISP training cluster"
+
+[corisp_vcoco]
+model = "CoRISP (V-COCO)"
+file = "TODO"
+bytes = 0
+sha256 = "TODO"
+url = "TODO: Google Drive link, uploaded from the CoRISP training cluster"
+
+# V-COCO: official checkpoints released by the upstream authors (not redistributed here).
+
+[qpic_r101_vcoco]
+model = "QPIC (ResNet-101) (V-COCO, official)"
+file = "qpic_resnet101_vcoco.pth"
+sha256 = "8484c1f6c0d3c6ff04e28895352bea8175e7e834f82c96c0692cde54d9d50b62"
+url = "https://github.com/hitachi-rd-cv/qpic/releases/download/v1.0/qpic_resnet101_vcoco.pth"
+
+[qpic_r50_vcoco]
+model = "QPIC (ResNet-50) (V-COCO, official)"
+file = "qpic_resnet50_vcoco.pth"
+sha256 = "e34fb44596d4e499402d0f3f0b33ca6a6e402358ec053c1c6b103283871446ac"
+url = "https://github.com/hitachi-rd-cv/qpic/releases/download/v1.0/qpic_resnet50_vcoco.pth"
+
+[muren_vcoco]
+model = "MUREN (V-COCO, official)"
+file = "vcoco-best.pth"
+sha256 = "TODO: not recorded by the V-COCO runner"
+url = "https://postechackr-my.sharepoint.com/:u:/g/personal/sosfd_postech_ac_kr/ETj2jNXgs_xOhcMWBJ7aghUB_g5c8jiozggmFcaxpyXFkg?e=kKaCJq"   # folder or archive: download the file manually
+
+[gen_vlkt_l_vcoco]
+model = "GEN-VLKT-L (V-COCO, official)"
+file = "VCOCO_GEN_VLKT_L.pth"
+sha256 = "ccdabbb2abaa5fdf62e78a8c8640c939168b105160f711ba3a0d243ac2c45b04"
+url = "https://drive.google.com/file/d/1y_AYdF_BewWTZfDPEiSOy72e-63x_rDC/view?usp=sharing"
+
+[gen_vlkt_s_vcoco]
+model = "GEN-VLKT-S (V-COCO, official)"
+file = "VCOCO_GEN_VLKT_S.pth"
+sha256 = "38579ab5633cd7c8897ff4aba7b0dfd2d27db38fbcadf1883c56f779ab30043f"
+url = "https://drive.google.com/file/d/1bPlr1_jhRabcG9N4B8NN4vUr63q4Go-Y/view?usp=sharing"
+
+[rlipv2_swinl_vcoco]
+model = "RLIPv2 (Swin-L) (V-COCO, official)"
+file = "checkpoint0019.pth"
+sha256 = "6b40b9982e0a4fdd4b3aa0f3fc5c70e13bcd6f54ea07a476dc074e2e19724a74"
+url = "https://1drv.ms/f/c/e2b8cd450f9e9eb7/Qreeng9FzbgggOLSIQAAAAAAyL_yAmT7JHcWgw"   # folder or archive: download the file manually
+
+[rlipv2_swint_vcoco]
+model = "RLIPv2 (Swin-T) (V-COCO, official)"
+file = "RLIP_PDA_v2_VCOCO_SwinT_VGCOCOO365_RQL_LSE_RPL_20e_L1_20e_checkpoint0019.pth"
+sha256 = "b6910d3a02cf2d9fa30f8810d94880b60c6e67f1df946be62045dafa418542ea"
+url = "https://1drv.ms/f/c/e2b8cd450f9e9eb7/Qreeng9FzbgggOLSIQAAAAAAyL_yAmT7JHcWgw"   # folder or archive: download the file manually
+
+[sov_stg_l_vcoco]
+model = "SOV-STG-L (V-COCO, official)"
+file = "sov-stg-l_vcoco.pth"
+sha256 = "e10cc16cb31b52c0bef9bbe0cf0de11126acff4a3cd4b2421dcc72b697091bea"
+url = "https://drive.google.com/file/d/1ye_vJWopP1v9VxKYUmP4TI4AsQvX4IC_/view?usp=sharing"
+
+[sov_stg_vla_s_vcoco]
+model = "SOV-STG-VLA-S (V-COCO, official)"
+file = "SOV_STG_VLA_vcoco_s.pth"
+sha256 = "bdd59705a5cee8c1f6b715adf855c7ad67fd4264a95869c4b26c9185f78e5095"
+url = "https://drive.google.com/file/d/1sX8K0_SmKDPJIvPxHK-4cAicx6TDeIL8/view?usp=sharing"

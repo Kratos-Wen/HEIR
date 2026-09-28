@@ -1,0 +1,640 @@
+{
+  "assets": {
+    "CLIP_VIT_B32": {
+      "mounts": [
+        [
+          "assets/clip/ViT-B-32.pt",
+          ""
+        ]
+      ],
+      "sha256": {
+        "assets/clip/ViT-B-32.pt": "40d365715913c9da98579312b702a82c18be219cc2a73407c4526f58eba950af"
+      }
+    },
+    "DETR_R101": {
+      "mounts": [
+        [
+          "assets/detr/detr-r101-2c7b67e5.pth",
+          ""
+        ]
+      ],
+      "sha256": {
+        "assets/detr/detr-r101-2c7b67e5.pth": "2c7b67e52d2e687cefa3c4a5e701a148664159c96725c62984600d2d9d5c4104"
+      }
+    },
+    "DETR_R50": {
+      "mounts": [
+        [
+          "assets/detr/detr-r50-e632da11.pth",
+          ""
+        ]
+      ],
+      "sha256": {
+        "assets/detr/detr-r50-e632da11.pth": "e632da11ec76ae67bac2f8579fbed3724e08dead7d200ca13e019b197784eadc"
+      }
+    },
+    "HEIR": {
+      "mounts": [
+        [
+          "data/heir",
+          ""
+        ]
+      ],
+      "sha256": {}
+    },
+    "HEIR_SUPPORT": {
+      "mounts": [
+        [
+          "data/heir_support.csv",
+          ""
+        ]
+      ],
+      "sha256": {}
+    }
+  },
+  "commands": {
+    "sources": {
+      "argv": [
+        "{python}",
+        "{root}/workspace/fetch_sources.py"
+      ],
+      "assets": [],
+      "cwd": "{root}/workspace",
+      "distributed": false,
+      "run_name": "sources",
+      "world_size": 1,
+      "pythonpath": [
+        "workspace"
+      ]
+    },
+    "gen_vlkt_s-prepare": {
+      "argv": [
+        "{python}",
+        "{root}/workspace/heir/tools/convert_heir_to_hico.py",
+        "--heir-root",
+        "{root}/data/heir",
+        "--out",
+        "{output}/heir_hico"
+      ],
+      "assets": [
+        "HEIR"
+      ],
+      "cwd": "{root}/workspace",
+      "distributed": false,
+      "run_name": "gen_vlkt_s",
+      "world_size": 1,
+      "pythonpath": [
+        "workspace/heir/scorer"
+      ]
+    },
+    "gen_vlkt_s-support": {
+      "argv": [
+        "{python}",
+        "{root}/workspace/heir/tools/build_support_mask.py",
+        "--support-csv",
+        "{root}/data/heir_support.csv",
+        "--classes",
+        "{output}/heir_hico/annotations/classes.json",
+        "--out",
+        "{output}/support_mask.npy"
+      ],
+      "assets": [
+        "HEIR_SUPPORT"
+      ],
+      "cwd": "{root}/workspace",
+      "distributed": false,
+      "run_name": "gen_vlkt_s",
+      "world_size": 1,
+      "pythonpath": [
+        "workspace/heir/scorer"
+      ]
+    },
+    "gen_vlkt_s-labels": {
+      "argv": [
+        "{python}",
+        "tools/build_heir_text_labels.py",
+        "--root",
+        "{output}/heir_hico/annotations",
+        "--corre",
+        "{output}/support_mask.npy",
+        "--out",
+        "datasets/heir_text_label_sem10072.py"
+      ],
+      "assets": [],
+      "cwd": "{root}/workspace/reference_repos/gen-vlkt",
+      "distributed": false,
+      "run_name": "gen_vlkt_s",
+      "world_size": 1,
+      "pythonpath": [
+        "workspace/reference_repos/CLIP",
+        "workspace/reference_repos/gen-vlkt"
+      ]
+    },
+    "gen_vlkt_s-init": {
+      "argv": [
+        "{python}",
+        "tools/convert_parameters.py",
+        "--load_path",
+        "{root}/assets/detr/detr-r50-e632da11.pth",
+        "--save_path",
+        "{output}/init.pth",
+        "--dataset",
+        "heir",
+        "--num_queries",
+        "64"
+      ],
+      "assets": [
+        "DETR_R50"
+      ],
+      "cwd": "{root}/workspace/reference_repos/gen-vlkt",
+      "distributed": false,
+      "run_name": "gen_vlkt_s",
+      "world_size": 1,
+      "pythonpath": [
+        "workspace/reference_repos/CLIP",
+        "workspace/reference_repos/gen-vlkt"
+      ]
+    },
+    "gen_vlkt_s-train": {
+      "argv": [
+        "{python}",
+        "main.py",
+        "--pretrained",
+        "{output}/init.pth",
+        "--clip_model",
+        "{root}/assets/clip/ViT-B-32.pt",
+        "--output_dir",
+        "{output}/train",
+        "--dataset_file",
+        "heir",
+        "--heir_label_set",
+        "sem10072",
+        "--hoi_path",
+        "{output}/heir_hico",
+        "--num_obj_classes",
+        "437",
+        "--num_verb_classes",
+        "225",
+        "--backbone",
+        "resnet50",
+        "--num_queries",
+        "64",
+        "--dec_layers",
+        "3",
+        "--epochs",
+        "90",
+        "--lr_drop",
+        "60",
+        "--batch_size",
+        "8",
+        "--num_workers",
+        "6",
+        "--seed",
+        "42",
+        "--use_nms_filter",
+        "--ft_clip_with_small_lr",
+        "--with_clip_label",
+        "--with_obj_clip_label",
+        "--with_mimic",
+        "--mimic_loss_coef",
+        "20"
+      ],
+      "assets": [
+        "CLIP_VIT_B32"
+      ],
+      "cwd": "{root}/workspace/reference_repos/gen-vlkt",
+      "distributed": true,
+      "run_name": "gen_vlkt_s",
+      "world_size": 2,
+      "pythonpath": [
+        "workspace/reference_repos/CLIP",
+        "workspace/reference_repos/gen-vlkt"
+      ]
+    },
+    "gen_vlkt_s-export": {
+      "argv": [
+        "{python}",
+        "tools/export_heir_predictions.py",
+        "--checkpoint",
+        "{output}/train/checkpoint_last.pth",
+        "--split",
+        "test",
+        "--hoi_path",
+        "{output}/heir_hico",
+        "--clip_model",
+        "{root}/assets/clip/ViT-B-32.pt",
+        "--output",
+        "{output}/test_predictions.jsonl"
+      ],
+      "assets": [
+        "CLIP_VIT_B32"
+      ],
+      "cwd": "{root}/workspace/reference_repos/gen-vlkt",
+      "distributed": false,
+      "run_name": "gen_vlkt_s",
+      "world_size": 1,
+      "pythonpath": [
+        "workspace/reference_repos/CLIP",
+        "workspace/reference_repos/gen-vlkt"
+      ]
+    },
+    "gen_vlkt_s-score-role": {
+      "argv": [
+        "{python}",
+        "{root}/workspace/heir/scorer/evaluate_heir_predictions.py",
+        "--heir-root",
+        "{root}/data/heir",
+        "--classes",
+        "{output}/heir_hico/annotations/classes.json",
+        "--split",
+        "test",
+        "--predictions",
+        "{output}/test_predictions.jsonl",
+        "--output-dir",
+        "{output}/role"
+      ],
+      "assets": [
+        "HEIR"
+      ],
+      "cwd": "{root}/workspace",
+      "distributed": false,
+      "run_name": "gen_vlkt_s",
+      "world_size": 1,
+      "pythonpath": [
+        "workspace/heir/scorer"
+      ]
+    },
+    "gen_vlkt_s-score-hoi": {
+      "argv": [
+        "{python}",
+        "{root}/workspace/heir/scorer/evaluate_heir_predictions.py",
+        "--heir-root",
+        "{root}/data/heir",
+        "--classes",
+        "{output}/heir_hico/annotations/classes.json",
+        "--split",
+        "test",
+        "--predictions",
+        "{output}/test_predictions.jsonl",
+        "--hoi",
+        "--output-dir",
+        "{output}/hoi"
+      ],
+      "assets": [
+        "HEIR"
+      ],
+      "cwd": "{root}/workspace",
+      "distributed": false,
+      "run_name": "gen_vlkt_s",
+      "world_size": 1,
+      "pythonpath": [
+        "workspace/heir/scorer"
+      ]
+    },
+    "gen_vlkt_s-score-sets-topk": {
+      "argv": [
+        "{python}",
+        "{root}/workspace/heir/scorer/evaluate_heir_sets.py",
+        "--heir-root",
+        "{root}/data/heir",
+        "--classes",
+        "{output}/heir_hico/annotations/classes.json",
+        "--split",
+        "test",
+        "--predictions",
+        "{output}/test_predictions.jsonl",
+        "--max-sets",
+        "100",
+        "--construction",
+        "top-k",
+        "--output-dir",
+        "{output}/sets_topk"
+      ],
+      "assets": [
+        "HEIR"
+      ],
+      "cwd": "{root}/workspace",
+      "distributed": false,
+      "run_name": "gen_vlkt_s",
+      "world_size": 1,
+      "pythonpath": [
+        "workspace/heir/scorer"
+      ]
+    },
+    "gen_vlkt_s-score-sets-map": {
+      "argv": [
+        "{python}",
+        "{root}/workspace/heir/scorer/evaluate_heir_sets.py",
+        "--heir-root",
+        "{root}/data/heir",
+        "--classes",
+        "{output}/heir_hico/annotations/classes.json",
+        "--split",
+        "test",
+        "--predictions",
+        "{output}/test_predictions.jsonl",
+        "--max-sets",
+        "100",
+        "--construction",
+        "map",
+        "--output-dir",
+        "{output}/sets_map"
+      ],
+      "assets": [
+        "HEIR"
+      ],
+      "cwd": "{root}/workspace",
+      "distributed": false,
+      "run_name": "gen_vlkt_s",
+      "world_size": 1,
+      "pythonpath": [
+        "workspace/heir/scorer"
+      ]
+    },
+    "gen_vlkt_l-prepare": {
+      "argv": [
+        "{python}",
+        "{root}/workspace/heir/tools/convert_heir_to_hico.py",
+        "--heir-root",
+        "{root}/data/heir",
+        "--out",
+        "{output}/heir_hico"
+      ],
+      "assets": [
+        "HEIR"
+      ],
+      "cwd": "{root}/workspace",
+      "distributed": false,
+      "run_name": "gen_vlkt_l",
+      "world_size": 1,
+      "pythonpath": [
+        "workspace/heir/scorer"
+      ]
+    },
+    "gen_vlkt_l-support": {
+      "argv": [
+        "{python}",
+        "{root}/workspace/heir/tools/build_support_mask.py",
+        "--support-csv",
+        "{root}/data/heir_support.csv",
+        "--classes",
+        "{output}/heir_hico/annotations/classes.json",
+        "--out",
+        "{output}/support_mask.npy"
+      ],
+      "assets": [
+        "HEIR_SUPPORT"
+      ],
+      "cwd": "{root}/workspace",
+      "distributed": false,
+      "run_name": "gen_vlkt_l",
+      "world_size": 1,
+      "pythonpath": [
+        "workspace/heir/scorer"
+      ]
+    },
+    "gen_vlkt_l-labels": {
+      "argv": [
+        "{python}",
+        "tools/build_heir_text_labels.py",
+        "--root",
+        "{output}/heir_hico/annotations",
+        "--corre",
+        "{output}/support_mask.npy",
+        "--out",
+        "datasets/heir_text_label_sem10072.py"
+      ],
+      "assets": [],
+      "cwd": "{root}/workspace/reference_repos/gen-vlkt",
+      "distributed": false,
+      "run_name": "gen_vlkt_l",
+      "world_size": 1,
+      "pythonpath": [
+        "workspace/reference_repos/CLIP",
+        "workspace/reference_repos/gen-vlkt"
+      ]
+    },
+    "gen_vlkt_l-init": {
+      "argv": [
+        "{python}",
+        "tools/convert_parameters.py",
+        "--load_path",
+        "{root}/assets/detr/detr-r101-2c7b67e5.pth",
+        "--save_path",
+        "{output}/init.pth",
+        "--dataset",
+        "heir",
+        "--num_queries",
+        "64"
+      ],
+      "assets": [
+        "DETR_R101"
+      ],
+      "cwd": "{root}/workspace/reference_repos/gen-vlkt",
+      "distributed": false,
+      "run_name": "gen_vlkt_l",
+      "world_size": 1,
+      "pythonpath": [
+        "workspace/reference_repos/CLIP",
+        "workspace/reference_repos/gen-vlkt"
+      ]
+    },
+    "gen_vlkt_l-train": {
+      "argv": [
+        "{python}",
+        "main.py",
+        "--pretrained",
+        "{output}/init.pth",
+        "--clip_model",
+        "{root}/assets/clip/ViT-B-32.pt",
+        "--output_dir",
+        "{output}/train",
+        "--dataset_file",
+        "heir",
+        "--heir_label_set",
+        "sem10072",
+        "--hoi_path",
+        "{output}/heir_hico",
+        "--num_obj_classes",
+        "437",
+        "--num_verb_classes",
+        "225",
+        "--backbone",
+        "resnet101",
+        "--num_queries",
+        "64",
+        "--dec_layers",
+        "6",
+        "--epochs",
+        "90",
+        "--lr_drop",
+        "60",
+        "--batch_size",
+        "8",
+        "--num_workers",
+        "6",
+        "--seed",
+        "42",
+        "--use_nms_filter",
+        "--ft_clip_with_small_lr",
+        "--with_clip_label",
+        "--with_obj_clip_label",
+        "--with_mimic",
+        "--mimic_loss_coef",
+        "20"
+      ],
+      "assets": [
+        "CLIP_VIT_B32"
+      ],
+      "cwd": "{root}/workspace/reference_repos/gen-vlkt",
+      "distributed": true,
+      "run_name": "gen_vlkt_l",
+      "world_size": 2,
+      "pythonpath": [
+        "workspace/reference_repos/CLIP",
+        "workspace/reference_repos/gen-vlkt"
+      ]
+    },
+    "gen_vlkt_l-export": {
+      "argv": [
+        "{python}",
+        "tools/export_heir_predictions.py",
+        "--checkpoint",
+        "{output}/train/checkpoint_last.pth",
+        "--split",
+        "test",
+        "--hoi_path",
+        "{output}/heir_hico",
+        "--clip_model",
+        "{root}/assets/clip/ViT-B-32.pt",
+        "--output",
+        "{output}/test_predictions.jsonl"
+      ],
+      "assets": [
+        "CLIP_VIT_B32"
+      ],
+      "cwd": "{root}/workspace/reference_repos/gen-vlkt",
+      "distributed": false,
+      "run_name": "gen_vlkt_l",
+      "world_size": 1,
+      "pythonpath": [
+        "workspace/reference_repos/CLIP",
+        "workspace/reference_repos/gen-vlkt"
+      ]
+    },
+    "gen_vlkt_l-score-role": {
+      "argv": [
+        "{python}",
+        "{root}/workspace/heir/scorer/evaluate_heir_predictions.py",
+        "--heir-root",
+        "{root}/data/heir",
+        "--classes",
+        "{output}/heir_hico/annotations/classes.json",
+        "--split",
+        "test",
+        "--predictions",
+        "{output}/test_predictions.jsonl",
+        "--output-dir",
+        "{output}/role"
+      ],
+      "assets": [
+        "HEIR"
+      ],
+      "cwd": "{root}/workspace",
+      "distributed": false,
+      "run_name": "gen_vlkt_l",
+      "world_size": 1,
+      "pythonpath": [
+        "workspace/heir/scorer"
+      ]
+    },
+    "gen_vlkt_l-score-hoi": {
+      "argv": [
+        "{python}",
+        "{root}/workspace/heir/scorer/evaluate_heir_predictions.py",
+        "--heir-root",
+        "{root}/data/heir",
+        "--classes",
+        "{output}/heir_hico/annotations/classes.json",
+        "--split",
+        "test",
+        "--predictions",
+        "{output}/test_predictions.jsonl",
+        "--hoi",
+        "--output-dir",
+        "{output}/hoi"
+      ],
+      "assets": [
+        "HEIR"
+      ],
+      "cwd": "{root}/workspace",
+      "distributed": false,
+      "run_name": "gen_vlkt_l",
+      "world_size": 1,
+      "pythonpath": [
+        "workspace/heir/scorer"
+      ]
+    },
+    "gen_vlkt_l-score-sets-topk": {
+      "argv": [
+        "{python}",
+        "{root}/workspace/heir/scorer/evaluate_heir_sets.py",
+        "--heir-root",
+        "{root}/data/heir",
+        "--classes",
+        "{output}/heir_hico/annotations/classes.json",
+        "--split",
+        "test",
+        "--predictions",
+        "{output}/test_predictions.jsonl",
+        "--max-sets",
+        "100",
+        "--construction",
+        "top-k",
+        "--output-dir",
+        "{output}/sets_topk"
+      ],
+      "assets": [
+        "HEIR"
+      ],
+      "cwd": "{root}/workspace",
+      "distributed": false,
+      "run_name": "gen_vlkt_l",
+      "world_size": 1,
+      "pythonpath": [
+        "workspace/heir/scorer"
+      ]
+    },
+    "gen_vlkt_l-score-sets-map": {
+      "argv": [
+        "{python}",
+        "{root}/workspace/heir/scorer/evaluate_heir_sets.py",
+        "--heir-root",
+        "{root}/data/heir",
+        "--classes",
+        "{output}/heir_hico/annotations/classes.json",
+        "--split",
+        "test",
+        "--predictions",
+        "{output}/test_predictions.jsonl",
+        "--max-sets",
+        "100",
+        "--construction",
+        "map",
+        "--output-dir",
+        "{output}/sets_map"
+      ],
+      "assets": [
+        "HEIR"
+      ],
+      "cwd": "{root}/workspace",
+      "distributed": false,
+      "run_name": "gen_vlkt_l",
+      "world_size": 1,
+      "pythonpath": [
+        "workspace/heir/scorer"
+      ]
+    }
+  },
+  "family": "gen-vlkt"
+}

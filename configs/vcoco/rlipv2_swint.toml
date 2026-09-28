@@ -1,0 +1,13 @@
+name = "RLIPv2 (Swin-T)"
+benchmark = "vcoco"
+# V-COCO baselines run from the pinned release of this repository's reproductions/vcoco-baselines branch.
+repository = "https://github.com/Kratos-Wen/HEIR"
+branch = "reproductions/vcoco-baselines"
+commit = "f813e662f19011d01a489f5a55687c022b43a316"
+model = "rlipv2"
+variant = "rlipv2_swint"
+checkpoint = "rlipv2_swint_vcoco"
+checkpoint_asset = "RLIPV2_SWINT_PARAM_PATH"
+python = "rlipv2"
+[assets]  # V-COCO asset key = key in configs/paths.toml [assets]
+RLIPV2_SWINT_TEXT_ENCODER_TYPE = "ROBERTA_BASE"
