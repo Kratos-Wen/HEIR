@@ -47,6 +47,12 @@ def todo(value):
 def checkpoint_file(key, registry, paths, dry_run):
     """Return the verified local checkpoint, downloading it from its published link if needed."""
     entry = registry[key]
+    if entry.get('released') is False:  # trained locally with the recipe in models/
+        target = Path(paths.get('checkpoint_dir', 'checkpoints')).expanduser()
+        target = (target if target.is_absolute() else ROOT / target) / entry['file']
+        if not target.is_file() and not dry_run:
+            raise SystemExit(f'{key} is not released; train it with its recipe and place the final checkpoint at {target}.')
+        return target
     if todo(entry.get('file')) or todo(entry.get('sha256')):
         raise SystemExit(f'Checkpoint {key} is not released yet (configs/checkpoints.toml).')
     target = Path(paths.get('checkpoint_dir', 'checkpoints')).expanduser()
@@ -149,7 +155,7 @@ def evaluate(config_path, paths, registry, output, force, dry_run):
     if dry_run:
         return
     results = {'config': str(Path(config_path)), 'name': config.get('name', variant), 'checkpoint': config['checkpoint'],
-               'checkpoint_sha256': registry[config['checkpoint']]['sha256'],
+               'checkpoint_sha256': digest(checkpoint),
                'predictions_sha256': digest(output / 'test_predictions.jsonl'), 'metrics': collect(output, metrics)}
     (output / 'results.json').write_text(json.dumps(results, indent=2) + '\n')
     print(json.dumps(results, indent=2))
@@ -219,7 +225,8 @@ def listing(registry):
     for path in sorted((ROOT / 'configs').glob('*/*.toml')):
         config = load(path)
         entry = registry.get(config.get('checkpoint', ''), {})
-        state = 'TODO' if todo(entry.get('sha256')) else ('link TODO' if todo(entry.get('url')) else 'released')
+        state = ('train locally' if entry.get('released') is False else 'TODO' if todo(entry.get('sha256'))
+                 else 'link TODO' if todo(entry.get('url')) else 'released')
         rows.append(f'{str(path.relative_to(ROOT)):40s} {config.get("name", ""):28s} checkpoint: {state}')
     print('\n'.join(rows))
 

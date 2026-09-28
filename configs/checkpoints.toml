@@ -1,84 +1,62 @@
-# Released checkpoints. Files are hosted on Google Drive; evaluate.py downloads a file with gdown when it is not in
-# the local checkpoint cache and always verifies its SHA-256. Baseline checkpoints hold model weights, the final epoch
-# and path-free training arguments (tools/strip_checkpoint.py).
+# Checkpoint registry. Only CoRISP weights and the HEIR assets below are published by us (Google Drive).
+# HEIR baselines are trained with the recipes in models/<model>; place the final checkpoint in checkpoint_dir under
+# the listed file name (released = false: no download, no checksum). V-COCO baselines use the authors' official
+# checkpoints, verified by SHA-256.
 
 [qpic_r50_heir]
 model = "QPIC (ResNet-50)"
 file = "qpic_r50_heir.pth"
-bytes = 167811819
-sha256 = "e7a4eb7a80742223f31a09da1d2171ad191af13334ddd8335a4f8f0b883e94f1"
-url = "TODO: Google Drive link"
+released = false   # train with the recipe in models/
 
 [qpic_r101_heir]
 model = "QPIC (ResNet-101)"
 file = "qpic_r101_heir.pth"
-bytes = 244079230
-sha256 = "ea0047577794bcd0aadaf772c17ce3a138ea3a3997eb10cbb0b85ca6bdc6cbe3"
-url = "TODO: Google Drive link"
+released = false   # train with the recipe in models/
 
 [muren_heir]
 model = "MUREN"
 file = "muren_heir.pth"
-bytes = 302029833
-sha256 = "8e86e9368b3cf630d38ebd01422ec15b55e8a7d8424b5686ab7874cca3223a2e"
-url = "TODO: Google Drive link"
+released = false   # train with the recipe in models/
 
 [gen_vlkt_s_heir]
 model = "GEN-VLKT-S"
 file = "gen_vlkt_s_heir.pth"
-bytes = 189230191
-sha256 = "9f490abffd824981fc64cbd54c8839dcf981d20c0ef6770f00e38a981c3474b6"
-url = "TODO: Google Drive link"
+released = false   # train with the recipe in models/
 
 [gen_vlkt_l_heir]
 model = "GEN-VLKT-L"
 file = "gen_vlkt_l_heir.pth"
-bytes = 303430449
-sha256 = "c412091540a15925fdefb720d79d04187470a1fdd157d728dbffbaf361199b29"
-url = "TODO: Google Drive link"
+released = false   # train with the recipe in models/
 
 [rlipv2_swint_heir]
 model = "RLIPv2 (Swin-T)"
 file = "rlipv2_swint_heir.pth"
-bytes = 857449147
-sha256 = "af8f6e04c3c82d86a4f5a8aba8fc2414fa45b8b0386a1e6da655d62ea3c9f528"
-url = "TODO: Google Drive link"
+released = false   # train with the recipe in models/
 
 [rlipv2_swinl_heir]
 model = "RLIPv2 (Swin-L)"
 file = "rlipv2_swinl_heir.pth"
-bytes = 1536111323
-sha256 = "24604c599e7987eebe20b0b84cbad6aaa8b8f1f44b3bbec54dc7da4dac1f3a30"
-url = "TODO: Google Drive link"
+released = false   # train with the recipe in models/
 
 [sov_stg_s_heir]
 model = "SOV-STG-S"
 file = "sov_stg_s_heir.pth"
-bytes = 218103944
-sha256 = "ca140e7cff7aad60b34d0c453227a4c1017f1bb46f7d3b2d40dd0447543fb91b"
-url = "TODO: Google Drive link"
+released = false   # train with the recipe in models/
 
 [sov_stg_l_heir]
 model = "SOV-STG-L (ResNet-101)"
 file = "sov_stg_l_heir.pth"
-bytes = 351792305
-sha256 = "f992b99f314af5ea66518511a46d3efc643219e6c5ca4e2cb4de17607e2fe91f"
-url = "TODO: Google Drive link"
+released = false   # train with the recipe in models/
 
 [sov_stg_swinl_heir]
 model = "SOV-STG (Swin-L)"
 file = "sov_stg_swinl_heir.pth"
-bytes = 967588156
-sha256 = "0965f59d289d2d882135af7712cb5f991b6a142034a04235fd7b0d252d0ecb56"
-url = "TODO: Google Drive link"
+released = false   # train with the recipe in models/
 
 [sov_stg_vla_s_heir]
 model = "SOV-STG-VLA-S"
 file = "sov_stg_vla_s_heir.pth"
-bytes = 3104838507
-sha256 = "1471b0d1ac69a8830b5e70a3678dca517620db8c2a968729f412b15a594813e7"
-url = "TODO: Google Drive link"
-
+released = false   # train with the recipe in models/
 
 # HEIR assets published with the release.
 

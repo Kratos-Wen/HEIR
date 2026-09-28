@@ -33,7 +33,7 @@ class Configurations(unittest.TestCase):
 
     def test_registry_entries_are_pinned_or_marked_todo(self):
         for key, entry in load(ROOT / 'configs/checkpoints.toml').items():
-            if entry['sha256'].startswith('TODO'):
+            if entry.get('released') is False or entry['sha256'].startswith('TODO'):
                 continue
             self.assertEqual(len(entry['sha256']), 64, key)
             self.assertTrue(entry['file'].endswith(('.pth', '.pt', '.json', '.csv')), key)

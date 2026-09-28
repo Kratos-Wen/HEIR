@@ -24,7 +24,7 @@ python evaluate.py configs/heir/rlipv2_swinl.toml    # results in runs/rlipv2_sw
 CUDA_VISIBLE_DEVICES=1 python evaluate.py configs/heir/gen_vlkt_l.toml --output runs/gen_vlkt_l
 ```
 
-For a baseline configuration, `evaluate.py` fetches the pinned upstream source and applies the HEIR adapters, links the dataset and inference assets, downloads the checkpoint from its published link into `checkpoint_dir` when absent (requires `gdown`), verifies its SHA-256, exports test predictions and computes Role mAP, HOI mAP and Set mAP with top-k and MAP decoding. Stages whose outputs exist are reused; `--force` recomputes them and `--dry-run` prints the commands. Each model family needs its own environment with the requirements of its upstream repository; set the interpreter per family under `[python]` in `configs/paths.toml`.
+For a HEIR baseline configuration, `evaluate.py` fetches the pinned upstream source and applies the HEIR adapters, links the dataset and inference assets, uses the checkpoint you trained with the recipe in `models/<model>` (the final epoch, placed in `checkpoint_dir` under the file name listed in `configs/checkpoints.toml`), exports test predictions and computes Role mAP, HOI mAP and Set mAP with top-k and MAP decoding. Baseline weights trained on HEIR are not distributed. Stages whose outputs exist are reused; `--force` recomputes them and `--dry-run` prints the commands. Each model family needs its own environment with the requirements of its upstream repository; set the interpreter per family under `[python]` in `configs/paths.toml`.
 
 | Configuration | Model |
 | --- | --- |
@@ -39,7 +39,7 @@ For a baseline configuration, `evaluate.py` fetches the pinned upstream source a
 
 A V-COCO configuration checks out the pinned release of `reproductions/vcoco-baselines` into `external/`, fetches that model's official source at the pinned commit, unchanged, downloads the authors' checkpoint when a direct or Google Drive link exists (otherwise it names the file to place in `checkpoint_dir`), verifies its SHA-256, runs inference and reports the official role AP (Scenario 1 and 2, omitting `point`). Set `vcoco` in `configs/paths.toml` to the official V-COCO checkout. The complete-set V-COCO evaluator is `evaluation/` on that branch. Upstream code loads full training checkpoints with `torch.load`; under PyTorch 2.6 or later, run those environments with `TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD=1` and use only the checkpoints listed in `configs/checkpoints.toml`, whose SHA-256 is verified before loading.
 
-Baseline checkpoints contain model weights, the final epoch and training arguments without local paths (`tools/strip_checkpoint.py`). The CoRISP configurations record the checkpoint, the `main` commit and its evaluation commands; `evaluate.py` does not run them.
+`tools/strip_checkpoint.py` writes a checkpoint with model weights, the final epoch and training arguments without local paths. The CoRISP configurations record the checkpoint, the `main` commit and its evaluation commands; `evaluate.py` does not run them.
 
 ## Baseline training recipes
 
