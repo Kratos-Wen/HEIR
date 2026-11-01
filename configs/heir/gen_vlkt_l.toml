@@ -1,0 +1,7 @@
+name = "GEN-VLKT-L"
+model = "gen-vlkt"            # directory under models/
+variant = "gen_vlkt_l"
+checkpoint = "gen_vlkt_l_heir"   # entry in configs/checkpoints.toml
+python = "gen-vlkt"            # environment in configs/paths.toml [python]
+assets = ["CLIP_VIT_B32"]
+metrics = ["role", "hoi", "sets-topk", "sets-map"]

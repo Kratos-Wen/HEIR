@@ -1,0 +1,7 @@
+name = "MUREN"
+model = "muren"            # directory under models/
+variant = "muren"
+checkpoint = "muren_heir"   # entry in configs/checkpoints.toml
+python = "muren"            # environment in configs/paths.toml [python]
+assets = []
+metrics = ["role", "hoi", "sets-topk", "sets-map"]

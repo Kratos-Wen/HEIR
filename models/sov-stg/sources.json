@@ -1,0 +1,16 @@
+{
+  "SOV-STG": {
+    "url": "https://github.com/cjw2021/SOV-STG",
+    "commit": "d7ad01f4fb372fc2a98f3f947db1cc5f9dfa58fe",
+    "patch": "patches/SOV-STG.patch"
+  },
+  "SOV-STG-VLA": {
+    "url": "https://github.com/cjw2021/SOV-STG-VLA",
+    "commit": "64db7ca320c2feb3872eb8648731b5a4e0630ccf",
+    "patch": "patches/SOV-STG-VLA.patch"
+  },
+  "CLIP": {
+    "url": "https://github.com/openai/CLIP",
+    "commit": "d05afc436d78f1c48dc0dbf8e5980a9d471f35f6"
+  }
+}

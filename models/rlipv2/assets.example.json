@@ -1,0 +1,7 @@
+{
+  "HEIR": "/path/to/heir",
+  "HEIR_SUPPORT": "/path/to/heir_support",
+  "RLIPV2_SWINL_PRETRAIN": "/path/to/rlipv2_swinl_pretrain",
+  "RLIPV2_SWINT_PRETRAIN": "/path/to/rlipv2_swint_pretrain",
+  "ROBERTA_BASE": "/path/to/roberta_base"
+}

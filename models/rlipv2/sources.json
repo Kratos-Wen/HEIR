@@ -1,0 +1,7 @@
+{
+  "RLIPv2": {
+    "url": "https://github.com/JacobYuan7/RLIPv2",
+    "commit": "2adae6039c98e3110c47fe7de5bff6abe5baeaf2",
+    "patch": "patches/RLIPv2.patch"
+  }
+}

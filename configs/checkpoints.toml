@@ -1,0 +1,124 @@
+# Checkpoint registry. HEIR baselines are trained with the recipes in models/<model>; place the final checkpoint in
+# checkpoint_dir under the listed file name (released = false: no download). V-COCO baselines use the authors' official
+# checkpoints.
+
+[qpic_r50_heir]
+model = "QPIC (ResNet-50)"
+file = "qpic_r50_heir.pth"
+released = false   # train with the recipe in models/
+
+[qpic_r101_heir]
+model = "QPIC (ResNet-101)"
+file = "qpic_r101_heir.pth"
+released = false   # train with the recipe in models/
+
+[muren_heir]
+model = "MUREN"
+file = "muren_heir.pth"
+released = false   # train with the recipe in models/
+
+[gen_vlkt_s_heir]
+model = "GEN-VLKT-S"
+file = "gen_vlkt_s_heir.pth"
+released = false   # train with the recipe in models/
+
+[gen_vlkt_l_heir]
+model = "GEN-VLKT-L"
+file = "gen_vlkt_l_heir.pth"
+released = false   # train with the recipe in models/
+
+[rlipv2_swint_heir]
+model = "RLIPv2 (Swin-T)"
+file = "rlipv2_swint_heir.pth"
+released = false   # train with the recipe in models/
+
+[rlipv2_swinl_heir]
+model = "RLIPv2 (Swin-L)"
+file = "rlipv2_swinl_heir.pth"
+released = false   # train with the recipe in models/
+
+[sov_stg_s_heir]
+model = "SOV-STG-S"
+file = "sov_stg_s_heir.pth"
+released = false   # train with the recipe in models/
+
+[sov_stg_l_heir]
+model = "SOV-STG-L (ResNet-101)"
+file = "sov_stg_l_heir.pth"
+released = false   # train with the recipe in models/
+
+[sov_stg_swinl_heir]
+model = "SOV-STG (Swin-L)"
+file = "sov_stg_swinl_heir.pth"
+released = false   # train with the recipe in models/
+
+[sov_stg_vla_s_heir]
+model = "SOV-STG-VLA-S"
+file = "sov_stg_vla_s_heir.pth"
+released = false   # train with the recipe in models/
+
+# HEIR assets used with CoRISP and the baselines. Set their local paths in configs/paths.toml or as in the commands of
+# configs/heir/corisp.toml.
+
+[heir_support]
+model = "HEIR support table (10,072 action--noun--role combinations)"
+file = "heir_support.csv"
+
+[corisp_heir_detector]
+model = "CoRISP HEIR detector (H-DETR Swin-L)"
+file = "heir_detector.pth"
+
+[corisp_heir_prototypes]
+model = "CoRISP HEIR DINO.txt prototypes"
+file = "heir_prototypes.pt"
+
+[corisp_heir_compatibility]
+model = "CoRISP HEIR compatibility inventory"
+file = "compatibility.json"
+
+# V-COCO: official checkpoints released by the upstream authors (not redistributed here).
+
+[qpic_r101_vcoco]
+model = "QPIC (ResNet-101) (V-COCO, official)"
+file = "qpic_resnet101_vcoco.pth"
+url = "https://github.com/hitachi-rd-cv/qpic/releases/download/v1.0/qpic_resnet101_vcoco.pth"
+
+[qpic_r50_vcoco]
+model = "QPIC (ResNet-50) (V-COCO, official)"
+file = "qpic_resnet50_vcoco.pth"
+url = "https://github.com/hitachi-rd-cv/qpic/releases/download/v1.0/qpic_resnet50_vcoco.pth"
+
+[muren_vcoco]
+model = "MUREN (V-COCO, official)"
+file = "vcoco-best.pth"
+url = "https://postechackr-my.sharepoint.com/:u:/g/personal/sosfd_postech_ac_kr/ETj2jNXgs_xOhcMWBJ7aghUB_g5c8jiozggmFcaxpyXFkg?e=kKaCJq"   # folder or archive: download the file manually
+
+[gen_vlkt_l_vcoco]
+model = "GEN-VLKT-L (V-COCO, official)"
+file = "VCOCO_GEN_VLKT_L.pth"
+url = "https://drive.google.com/file/d/1y_AYdF_BewWTZfDPEiSOy72e-63x_rDC/view?usp=sharing"
+
+[gen_vlkt_s_vcoco]
+model = "GEN-VLKT-S (V-COCO, official)"
+file = "VCOCO_GEN_VLKT_S.pth"
+url = "https://drive.google.com/file/d/1bPlr1_jhRabcG9N4B8NN4vUr63q4Go-Y/view?usp=sharing"
+
+[rlipv2_swinl_vcoco]
+model = "RLIPv2 (Swin-L) (V-COCO, official)"
+file = "checkpoint0019.pth"
+url = "https://1drv.ms/f/c/e2b8cd450f9e9eb7/Qreeng9FzbgggOLSIQAAAAAAyL_yAmT7JHcWgw"   # folder or archive: download the file manually
+
+[rlipv2_swint_vcoco]
+model = "RLIPv2 (Swin-T) (V-COCO, official)"
+file = "RLIP_PDA_v2_VCOCO_SwinT_VGCOCOO365_RQL_LSE_RPL_20e_L1_20e_checkpoint0019.pth"
+url = "https://1drv.ms/f/c/e2b8cd450f9e9eb7/Qreeng9FzbgggOLSIQAAAAAAyL_yAmT7JHcWgw"   # folder or archive: download the file manually
+
+[sov_stg_l_vcoco]
+model = "SOV-STG-L (V-COCO, official)"
+file = "sov-stg-l_vcoco.pth"
+url = "https://drive.google.com/file/d/1ye_vJWopP1v9VxKYUmP4TI4AsQvX4IC_/view?usp=sharing"
+
+[sov_stg_vla_s_vcoco]
+model = "SOV-STG-VLA-S (V-COCO, official)"
+file = "SOV_STG_VLA_vcoco_s.pth"
+url = "https://drive.google.com/file/d/1sX8K0_SmKDPJIvPxHK-4cAicx6TDeIL8/view?usp=sharing"

@@ -1,0 +1,12 @@
+name = "GEN-VLKT-L"
+benchmark = "vcoco"
+# V-COCO baselines run from this repository's reproductions/vcoco-baselines branch.
+repository = "https://github.com/Kratos-Wen/HEIR"
+branch = "reproductions/vcoco-baselines"
+model = "gen-vlkt"
+variant = "gen_vlkt_l"
+checkpoint = "gen_vlkt_l_vcoco"
+checkpoint_asset = "GEN_VLKT_L_PARAM_PATH"
+python = "gen-vlkt"
+[assets]  # V-COCO asset key = key in configs/paths.toml [assets]
+GEN_VLKT_L_CLIP_MODEL = "CLIP_VIT_B32"

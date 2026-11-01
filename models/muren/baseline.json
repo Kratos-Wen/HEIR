@@ -1,0 +1,299 @@
+{
+  "assets": {
+    "DETR_R50": {
+      "mounts": [
+        [
+          "assets/detr/detr-r50-e632da11.pth",
+          ""
+        ]
+      ]
+    },
+    "HEIR": {
+      "mounts": [
+        [
+          "data/heir",
+          ""
+        ]
+      ]
+    },
+    "HEIR_SUPPORT": {
+      "mounts": [
+        [
+          "data/heir_support.csv",
+          ""
+        ]
+      ]
+    }
+  },
+  "commands": {
+    "sources": {
+      "argv": [
+        "{python}",
+        "{root}/workspace/fetch_sources.py"
+      ],
+      "assets": [],
+      "cwd": "{root}/workspace",
+      "distributed": false,
+      "run_name": "sources",
+      "world_size": 1,
+      "pythonpath": [
+        "workspace"
+      ]
+    },
+    "muren-prepare": {
+      "argv": [
+        "{python}",
+        "{repo}/tools/convert_heir_to_hico.py",
+        "--heir-root",
+        "{root}/data/heir",
+        "--out",
+        "{output}/heir_hico"
+      ],
+      "assets": [
+        "HEIR"
+      ],
+      "cwd": "{root}/workspace",
+      "distributed": false,
+      "run_name": "muren",
+      "world_size": 1,
+      "pythonpath": [
+        "workspace"
+      ]
+    },
+    "muren-support": {
+      "argv": [
+        "{python}",
+        "{repo}/tools/build_support_mask.py",
+        "--support-csv",
+        "{root}/data/heir_support.csv",
+        "--classes",
+        "{output}/heir_hico/annotations/classes.json",
+        "--out",
+        "{output}/support_mask.npy"
+      ],
+      "assets": [
+        "HEIR_SUPPORT"
+      ],
+      "cwd": "{root}/workspace",
+      "distributed": false,
+      "run_name": "muren",
+      "world_size": 1,
+      "pythonpath": [
+        "workspace"
+      ]
+    },
+    "muren-init": {
+      "argv": [
+        "{python}",
+        "tools/convert_detr_to_muren.py",
+        "--load_path",
+        "{root}/assets/detr/detr-r50-e632da11.pth",
+        "--save_path",
+        "{output}/init.pth"
+      ],
+      "assets": [
+        "DETR_R50"
+      ],
+      "cwd": "{root}/workspace/reference_repos/MUREN",
+      "distributed": false,
+      "run_name": "muren",
+      "world_size": 1
+    },
+    "muren-train": {
+      "argv": [
+        "{python}",
+        "main.py",
+        "--pretrained",
+        "{output}/init.pth",
+        "--output_dir",
+        "{output}/train",
+        "--hoi_path",
+        "{output}/heir_hico",
+        "--dataset_file",
+        "heir",
+        "--num_obj_classes",
+        "437",
+        "--num_verb_classes",
+        "225",
+        "--backbone",
+        "resnet50",
+        "--num_queries",
+        "64",
+        "--enc_layers",
+        "6",
+        "--dec_layers",
+        "6",
+        "--batch_size",
+        "8",
+        "--epochs",
+        "100",
+        "--lr_drop",
+        "60",
+        "--num_workers",
+        "8",
+        "--seed",
+        "42",
+        "--train_only"
+      ],
+      "assets": [],
+      "cwd": "{root}/workspace/reference_repos/MUREN",
+      "distributed": true,
+      "run_name": "muren",
+      "world_size": 2
+    },
+    "muren-export": {
+      "argv": [
+        "{python}",
+        "tools/export_heir_predictions.py",
+        "--checkpoint",
+        "{output}/train/checkpoint_last.pth",
+        "--split",
+        "test",
+        "--predictions",
+        "{output}/test_predictions.jsonl",
+        "--correct_mat_path",
+        "{output}/support_mask.npy",
+        "--hoi_path",
+        "{output}/heir_hico",
+        "--dataset_file",
+        "heir",
+        "--num_obj_classes",
+        "437",
+        "--num_verb_classes",
+        "225",
+        "--backbone",
+        "resnet50",
+        "--num_queries",
+        "64",
+        "--enc_layers",
+        "6",
+        "--dec_layers",
+        "6",
+        "--batch_size",
+        "8",
+        "--num_workers",
+        "4",
+        "--use_nms_filter"
+      ],
+      "assets": [],
+      "cwd": "{root}/workspace/reference_repos/MUREN",
+      "distributed": false,
+      "run_name": "muren",
+      "world_size": 1
+    },
+    "muren-score-role": {
+      "argv": [
+        "{python}",
+        "{repo}/scorer/evaluate_heir_predictions.py",
+        "--heir-root",
+        "{root}/data/heir",
+        "--classes",
+        "{output}/heir_hico/annotations/classes.json",
+        "--split",
+        "test",
+        "--predictions",
+        "{output}/test_predictions.jsonl",
+        "--output-dir",
+        "{output}/role"
+      ],
+      "assets": [
+        "HEIR"
+      ],
+      "cwd": "{root}/workspace",
+      "distributed": false,
+      "run_name": "muren",
+      "world_size": 1,
+      "pythonpath": [
+        "workspace"
+      ]
+    },
+    "muren-score-hoi": {
+      "argv": [
+        "{python}",
+        "{repo}/scorer/evaluate_heir_predictions.py",
+        "--heir-root",
+        "{root}/data/heir",
+        "--classes",
+        "{output}/heir_hico/annotations/classes.json",
+        "--split",
+        "test",
+        "--predictions",
+        "{output}/test_predictions.jsonl",
+        "--hoi",
+        "--output-dir",
+        "{output}/hoi"
+      ],
+      "assets": [
+        "HEIR"
+      ],
+      "cwd": "{root}/workspace",
+      "distributed": false,
+      "run_name": "muren",
+      "world_size": 1,
+      "pythonpath": [
+        "workspace"
+      ]
+    },
+    "muren-score-sets-topk": {
+      "argv": [
+        "{python}",
+        "{repo}/scorer/evaluate_heir_sets.py",
+        "--heir-root",
+        "{root}/data/heir",
+        "--classes",
+        "{output}/heir_hico/annotations/classes.json",
+        "--split",
+        "test",
+        "--predictions",
+        "{output}/test_predictions.jsonl",
+        "--max-sets",
+        "100",
+        "--construction",
+        "top-k",
+        "--output-dir",
+        "{output}/sets_topk"
+      ],
+      "assets": [
+        "HEIR"
+      ],
+      "cwd": "{root}/workspace",
+      "distributed": false,
+      "run_name": "muren",
+      "world_size": 1,
+      "pythonpath": [
+        "workspace"
+      ]
+    },
+    "muren-score-sets-map": {
+      "argv": [
+        "{python}",
+        "{repo}/scorer/evaluate_heir_sets.py",
+        "--heir-root",
+        "{root}/data/heir",
+        "--classes",
+        "{output}/heir_hico/annotations/classes.json",
+        "--split",
+        "test",
+        "--predictions",
+        "{output}/test_predictions.jsonl",
+        "--max-sets",
+        "100",
+        "--construction",
+        "map",
+        "--output-dir",
+        "{output}/sets_map"
+      ],
+      "assets": [
+        "HEIR"
+      ],
+      "cwd": "{root}/workspace",
+      "distributed": false,
+      "run_name": "muren",
+      "world_size": 1,
+      "pythonpath": [
+        "workspace"
+      ]
+    }
+  },
+  "family": "muren"
+}

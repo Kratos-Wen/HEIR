@@ -1,0 +1,10 @@
+{
+  "BLIP2_PRETRAINED": "/path/to/blip2_pretrained",
+  "CLIP_VIT_B32": "/path/to/clip_vit_b32",
+  "DN_DAB_DEFORMABLE_DETR_R101": "/path/to/dn_dab_deformable_detr_r101",
+  "DN_DAB_DEFORMABLE_DETR_SWIN_L": "/path/to/dn_dab_deformable_detr_swin_l",
+  "DN_DEFORMABLE_DETR_R50": "/path/to/dn_deformable_detr_r50",
+  "EVA_VIT_G": "/path/to/eva_vit_g",
+  "HEIR": "/path/to/heir",
+  "HEIR_SUPPORT": "/path/to/heir_support"
+}

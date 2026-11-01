@@ -1,0 +1,7 @@
+{
+  "qpic": {
+    "url": "https://github.com/hitachi-rd-cv/qpic",
+    "commit": "257f3147a47e92fcfd98a675b39423eb4f9a5a55",
+    "patch": "patches/qpic.patch"
+  }
+}

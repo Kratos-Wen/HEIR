@@ -1,0 +1,7 @@
+name = "SOV-STG-L (ResNet-101)"
+model = "sov-stg"            # directory under models/
+variant = "sov_stg_l"
+checkpoint = "sov_stg_l_heir"   # entry in configs/checkpoints.toml
+python = "sov-stg"            # environment in configs/paths.toml [python]
+assets = []
+metrics = ["role", "hoi", "sets-topk", "sets-map"]

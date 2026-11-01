@@ -1,0 +1,9 @@
+name = "CoRISP (HEIR)"
+family = "corisp"
+# CoRISP is evaluated from the main branch of this repository (docs/REPRODUCTION.md there).
+repository = "https://github.com/Kratos-Wen/HEIR"
+assets = ["CORISP_WEIGHTS", "HEIR_DETECTOR", "HEIR_PROTOTYPES", "HEIR_COMPATIBILITY"]
+# File names are in configs/checkpoints.toml; CORISP_WEIGHTS is described in docs/ASSETS.md on main.
+predict = "python -m corisp_heir.predict --data $HEIR_DATA --split test --detector $HEIR_DETECTOR --prototypes $HEIR_PROTOTYPES --compatibility $HEIR_COMPATIBILITY --checkpoint $CORISP_CHECKPOINT --output outputs/heir/test.jsonl"
+score_sets = "python -m evaluation.heir_sets --annotations $HEIR_DATA/annotations/test.json --vocabulary $HEIR_DATA/vocabulary.json --predictions outputs/heir/test.jsonl --output outputs/heir/set_metrics.json"
+metrics = ["role", "hoi", "sets-map"]

@@ -1,0 +1,652 @@
+diff --git a/datasets/__init__.py b/datasets/__init__.py
+index 1322f75..182556b 100644
+--- a/datasets/__init__.py
++++ b/datasets/__init__.py
+@@ -14,6 +14,7 @@ import torchvision
+ 
+ from .coco import build as build_coco
+ from .hico import build as build_hico
++from .heir import build as build_heir  # HEIR v1.0 adaptation
+ from .vcoco import build as build_vcoco
+ from .vg import build as build_vg
+ from .mixed_dataset import build as build_mixed
+@@ -42,6 +43,8 @@ def build_dataset(image_set, args):
+         return build_o365(image_set, args)
+     if args.dataset_file == 'hico':
+         return build_hico(image_set, args)
++    if args.dataset_file == 'heir':
++        return build_heir(image_set, args)
+     if args.dataset_file == 'vcoco':
+         return build_vcoco(image_set, args)
+     if args.dataset_file in ['vg', 'vg_oi']:
+diff --git a/datasets/heir.py b/datasets/heir.py
+new file mode 100644
+index 0000000..8519be4
+--- /dev/null
++++ b/datasets/heir.py
+@@ -0,0 +1,167 @@
++# ------------------------------------------------------------------------
++# HEIR v1.0 dataset for RLIPv2 (HICO-DET-style fine-tuning loader).
++# Mirrors datasets/hico.py (HICODetection): same augmentations
++# (make_hico_transforms), same multi-label pair targets, same text-label
++# interface (target['obj_classes'], target['verb_classes']).
++# Differences to hico.py:
++#   * category ids are already contiguous (objects 0..436, person = 0;
++#     interactions 0..224, one per (verb, role) pair), so no id remapping;
++#   * sub_labels = 0 (= index of "person" in the object text list), i.e. the
++#     behaviour of upstream's --use_correct_subject_category_hico;
++#   * texts: object names and (verb, role) phrases, see heir_interaction_text().
++# ------------------------------------------------------------------------
++import json
++from pathlib import Path
++
++import numpy as np
++import torch
++import torch.utils.data
++from PIL import Image
++
++from datasets.hico import make_hico_transforms
++
++# Role -> phrase template.  RLIPv2 phrases HICO verbs as lower-case verb
++# phrases in which a preposition marks how the object takes part
++# ("ride", "sit on", "brush with", "hold").  HEIR interactions are
++# (verb, role) pairs, so the role is rendered as such a preposition.
++ROLE_TEMPLATES = {
++    'target': '{verb}',                   # hold (target)          -> "hold"
++    'instrument': '{verb} with',          # cut (instrument)       -> "cut with"
++    'support': '{verb} on',               # sit (support)          -> "sit on"
++    'source': '{verb} from',              # pour (source)          -> "pour from"
++    'destination': '{verb} to',           # hand_over (destination)-> "hand over to"
++    'constraint': '{verb} constrained by',  # restrain (constraint) -> "restrain constrained by"
++}
++
++
++def heir_interaction_text(verb, role):
++    return ROLE_TEMPLATES[role].format(verb=verb.replace('_', ' '))
++
++
++def load_heir_texts(classes_file):
++    with open(classes_file, 'r') as f:
++        classes = json.load(f)
++    object_text = [o.replace('_', ' ') for o in classes['objects']]
++    verb_text = [heir_interaction_text(v, r) for v, r in classes['interaction_verb_role']]
++    assert len(object_text) == 437 and len(verb_text) == 225
++    assert len(set(object_text)) == len(object_text), 'duplicate object texts'
++    assert len(set(verb_text)) == len(verb_text), 'duplicate interaction texts'
++    assert classes['person_id'] == 0 and object_text[0] == 'person'
++    return object_text, verb_text
++
++
++class HEIRDetection(torch.utils.data.Dataset):
++    def __init__(self, img_set, img_folder, anno_file, classes_file, transforms, num_queries):
++        self.img_set = img_set
++        self.img_folder = Path(img_folder)
++        with open(anno_file, 'r') as f:
++            self.annotations = json.load(f)
++        self._transforms = transforms
++        self.num_queries = num_queries
++        self.object_text, self.verb_text = load_heir_texts(classes_file)
++        self.num_verbs = len(self.verb_text)
++
++        if img_set == 'train':
++            # same sanity filter as hico.py
++            self.ids = []
++            for idx, img_anno in enumerate(self.annotations):
++                for hoi in img_anno['hoi_annotation']:
++                    if hoi['subject_id'] >= len(img_anno['annotations']) or hoi['object_id'] >= len(img_anno['annotations']):
++                        break
++                else:
++                    self.ids.append(idx)
++        else:
++            self.ids = list(range(len(self.annotations)))
++
++    def __len__(self):
++        return len(self.ids)
++
++    def __getitem__(self, idx):
++        img_anno = self.annotations[self.ids[idx]]
++        img = Image.open(self.img_folder / img_anno['file_name']).convert('RGB')
++        w, h = img.size
++
++        annos = img_anno['annotations']
++        if self.img_set == 'train' and len(annos) > self.num_queries:
++            annos = annos[:self.num_queries]
++
++        boxes = torch.as_tensor([obj['bbox'] for obj in annos], dtype=torch.float32).reshape(-1, 4)
++        target = {'orig_size': torch.as_tensor([int(h), int(w)]), 'size': torch.as_tensor([int(h), int(w)])}
++
++        if self.img_set == 'train':
++            classes = torch.tensor([(i, obj['category_id']) for i, obj in enumerate(annos)], dtype=torch.int64).reshape(-1, 2)
++            boxes[:, 0::2].clamp_(min=0, max=w)
++            boxes[:, 1::2].clamp_(min=0, max=h)
++            keep = (boxes[:, 3] > boxes[:, 1]) & (boxes[:, 2] > boxes[:, 0])
++            boxes = boxes[keep]
++            classes = classes[keep]
++            target['boxes'] = boxes
++            target['labels'] = classes
++            target['iscrowd'] = torch.zeros((boxes.shape[0],), dtype=torch.int64)
++            target['area'] = (boxes[:, 2] - boxes[:, 0]) * (boxes[:, 3] - boxes[:, 1])
++
++            if self._transforms is not None:
++                img, target = self._transforms(img, target)
++
++            kept_box_indices = [int(label[0]) for label in target['labels']]
++            target['labels'] = target['labels'][:, 1]
++
++            obj_labels, verb_labels, sub_boxes, obj_boxes = [], [], [], []
++            sub_obj_pairs = []
++            for hoi in img_anno['hoi_annotation']:
++                if hoi['subject_id'] not in kept_box_indices or hoi['object_id'] not in kept_box_indices:
++                    continue
++                pair = (hoi['subject_id'], hoi['object_id'])
++                if pair in sub_obj_pairs:
++                    verb_labels[sub_obj_pairs.index(pair)][hoi['category_id']] = 1
++                else:
++                    sub_obj_pairs.append(pair)
++                    obj_labels.append(target['labels'][kept_box_indices.index(hoi['object_id'])])
++                    verb_label = [0] * self.num_verbs
++                    verb_label[hoi['category_id']] = 1
++                    verb_labels.append(verb_label)
++                    sub_boxes.append(target['boxes'][kept_box_indices.index(hoi['subject_id'])])
++                    obj_boxes.append(target['boxes'][kept_box_indices.index(hoi['object_id'])])
++
++            target['filename'] = img_anno['file_name']
++            target['obj_classes'] = self.object_text
++            target['verb_classes'] = self.verb_text
++            if len(sub_obj_pairs) == 0:
++                target['obj_labels'] = torch.zeros((0,), dtype=torch.int64)
++                target['sub_labels'] = torch.zeros((0,), dtype=torch.int64)
++                target['verb_labels'] = torch.zeros((0, self.num_verbs), dtype=torch.float32)
++                target['sub_boxes'] = torch.zeros((0, 4), dtype=torch.float32)
++                target['obj_boxes'] = torch.zeros((0, 4), dtype=torch.float32)
++            else:
++                target['obj_labels'] = torch.stack(obj_labels)
++                target['sub_labels'] = torch.zeros((len(obj_labels),), dtype=torch.int64)  # person = 0
++                target['verb_labels'] = torch.as_tensor(verb_labels, dtype=torch.float32)
++                target['sub_boxes'] = torch.stack(sub_boxes)
++                target['obj_boxes'] = torch.stack(obj_boxes)
++        else:
++            target['filename'] = img_anno['file_name']
++            target['image_id'] = str(img_anno['image_id'])
++            target['boxes'] = boxes
++            target['labels'] = torch.tensor([obj['category_id'] for obj in annos], dtype=torch.int64)
++            target['id'] = idx
++            if self._transforms is not None:
++                img, _ = self._transforms(img, None)
++            target['hois'] = torch.as_tensor(
++                [(hoi['subject_id'], hoi['object_id'], hoi['category_id']) for hoi in img_anno['hoi_annotation']],
++                dtype=torch.int64).reshape(-1, 3)
++        return img, target
++
++
++def build(image_set, args):
++    root = Path(args.hoi_path)
++    assert root.exists(), f'provided HOI path {root} does not exist'
++    split = {'train': 'train', 'val': 'val', 'test': 'test'}[image_set]
++    anno_file = root / 'annotations' / f'{split}_heir.json'
++    print('HEIR {} anno file: {}'.format(image_set, anno_file))
++    dataset = HEIRDetection(image_set, root / 'images', anno_file, root / 'annotations' / 'classes.json',
++                            transforms=make_hico_transforms('train' if image_set == 'train' else 'val'),
++                            num_queries=args.num_queries)
++    if image_set != 'train':
++        # RLIPv2 HICO protocol: correct_mat indexed [verb, obj]
++        dataset.correct_mat = np.load(root / 'annotations' / 'corre_heir.npy').T.astype(np.float64)
++    return dataset
+diff --git a/datasets/vcoco.py b/datasets/vcoco.py
+index a7dc96b..1d87a80 100644
+--- a/datasets/vcoco.py
++++ b/datasets/vcoco.py
+@@ -40,7 +40,7 @@ class VCOCO(torch.utils.data.Dataset):
+         
+         # vcoco_names_path = '/mnt/data-nas/peizhi/jacob/RLIP/datasets/vcoco_names.json'
+         # vcoco_names_path = '/mnt/data-nas/peizhi/jacob/RLIP/datasets/vcoco_names_v2.json'
+-        vcoco_names_path = '/mnt/data-nas/peizhi/jacob/RLIP/datasets/vcoco_names_v3.json'
++        vcoco_names_path = Path(__file__).with_name('vcoco_names_v3.json')
+         # vcoco_names_path = '/mnt/data-nas/peizhi/jacob/RLIP/datasets/vcoco_names_v4.json'
+         print('Loading VCOCO words from {}...'.format(vcoco_names_path))
+         with open(vcoco_names_path, 'r') as f:
+diff --git a/engine.py b/engine.py
+index 5059cc9..90894cf 100644
+--- a/engine.py
++++ b/engine.py
+@@ -64,8 +64,16 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
+         assert args.iterative_paradigm is not None
+         iterative_paradigm = [int(d) for d in args.iterative_paradigm.split(',')]
+     
+-    print_freq = 600
++    print_freq = getattr(args, 'print_freq', 600)
++    accum = getattr(args, 'accum_steps', 1)
++    # HEIR: with accumulation, an optimizer step uses `accum` consecutive micro-batches; the
++    # trailing incomplete group of an epoch is dropped (same spirit as drop_last=True).
++    n_iters = (len(data_loader) // accum) * accum
++    if getattr(args, 'max_iters_per_epoch', 0):
++        n_iters = min(n_iters, args.max_iters_per_epoch)  # HEIR smoke test only
+     for i, (samples, targets) in enumerate(metric_logger.log_every(data_loader, print_freq, header)):
++        if i >= n_iters:
++            break
+         curr_step = epoch * len(data_loader) + i
+         samples = samples.to(device)
+         if hasattr(model.module.transformer, 'text_encoder'):
+@@ -163,6 +171,20 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
+             #     if max_norm > 0:
+             #         torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm)
+             #     optimizer.step()
++        elif args.gradient_strategy == "vanilla" and accum > 1:
++            # HEIR: gradient accumulation. Gradient = mean over the accum micro-batches (and over
++            # ranks via DDP) = gradient of the global batch; clipping on the accumulated gradient.
++            if i % accum == 0:
++                optimizer.zero_grad()
++            if (i + 1) % accum != 0 and hasattr(model, 'no_sync'):
++                with model.no_sync():
++                    (losses / accum).backward()
++            else:
++                (losses / accum).backward()
++            if (i + 1) % accum == 0:
++                if max_norm > 0:
++                    torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm)
++                optimizer.step()
+         elif args.gradient_strategy == "vanilla":
+             # print('vanilla')
+             optimizer.zero_grad()
+@@ -791,7 +813,7 @@ def merge_verb_text(text_list, label_list):
+     # get the text version of label_list
+     text_label_list = []
+     for cur_text, cur_label in zip(text_list, label_list):
+-        idx_tensor = torch.tensor(range(0, cur_label.shape[1]))
++        idx_tensor = torch.arange(0, cur_label.shape[1], device=cur_label.device)  # HEIR: torch>=2 device check
+         cur_text_label = []
+         for label_tensor in cur_label:
+             kept_mask = label_tensor == 1
+diff --git a/export_heir.py b/export_heir.py
+new file mode 100644
+index 0000000..3b52d6a
+--- /dev/null
++++ b/export_heir.py
+@@ -0,0 +1,207 @@
++"""Export RLIPv2 (ParSeDA) predictions on HEIR val/test as JSONL for the shared HEIR scorer.
++
++Post-processing = RLIPv2's HICO-DET protocol (engine.evaluate_hoi_with_text ->
++PostProcessHOI -> datasets/hico_eval.HICOEvaluator):
++  * text embeddings of all object names (+ "no objects") and all interaction phrases;
++  * PostProcessHOI: obj score = max softmax over objects (no-object excluded),
++    interaction score = sigmoid(verb logit) * obj score; subject label = person (0);
++  * every (query, interaction) pair is a candidate; scores are multiplied by the
++    train co-occurrence mask correct_mat[interaction, object label] (corre_heir.npy);
++  * keep top-100 per image (HICOEvaluator.max_hois), then triplet (pairwise) NMS
++    (use_nms_filter, thres_nms 0.7, nms_alpha 1.0, nms_beta 0.5).
++A second file without the co-occurrence mask is written for reference (--also_nomask).
++
++Output line: {"image_id", "boxes" (original pixels, xyxy), "labels", "box_scores",
++"hois": [{"subject_id","object_id","category_id","score"}]}; one line per split image in
++split order; images beyond --limit are written with empty predictions.
++"""
++import argparse
++import json
++import os
++import sys
++import time
++from pathlib import Path
++
++import numpy as np
++import torch
++import torch.nn.functional as F
++
++sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
++os.chdir(os.path.dirname(os.path.abspath(__file__)))  # upstream loads priors via relative paths
++
++import util.misc as utils  # noqa: E402
++from datasets import build_dataset  # noqa: E402
++from models import build_model  # noqa: E402
++
++
++def pairwise_nms(subs, objs, scores, thres, alpha, beta):
++    # verbatim logic of HICOEvaluator.pairwise_nms
++    sx1, sy1, sx2, sy2 = subs[:, 0], subs[:, 1], subs[:, 2], subs[:, 3]
++    ox1, oy1, ox2, oy2 = objs[:, 0], objs[:, 1], objs[:, 2], objs[:, 3]
++    sub_areas = (sx2 - sx1 + 1) * (sy2 - sy1 + 1)
++    obj_areas = (ox2 - ox1 + 1) * (oy2 - oy1 + 1)
++    order = scores.argsort()[::-1]
++    keep = []
++    while order.size > 0:
++        i = order[0]
++        keep.append(i)
++        sw = np.maximum(0.0, np.minimum(sx2[i], sx2[order[1:]]) - np.maximum(sx1[i], sx1[order[1:]]) + 1)
++        sh = np.maximum(0.0, np.minimum(sy2[i], sy2[order[1:]]) - np.maximum(sy1[i], sy1[order[1:]]) + 1)
++        sub_inter = sw * sh
++        sub_union = sub_areas[i] + sub_areas[order[1:]] - sub_inter
++        ow = np.maximum(0.0, np.minimum(ox2[i], ox2[order[1:]]) - np.maximum(ox1[i], ox1[order[1:]]) + 1)
++        oh = np.maximum(0.0, np.minimum(oy2[i], oy2[order[1:]]) - np.maximum(oy1[i], oy1[order[1:]]) + 1)
++        obj_inter = ow * oh
++        obj_union = obj_areas[i] + obj_areas[order[1:]] - obj_inter
++        ovr = np.power(sub_inter / sub_union, alpha) * np.power(obj_inter / obj_union, beta)
++        order = order[np.where(ovr <= thres)[0] + 1]
++    return keep
++
++
++def image_record(image_id, res, box_scores, correct_mat, args):
++    """res: PostProcessHOI output for one image (cpu tensors)."""
++    boxes = res['boxes'].numpy()
++    labels = res['labels'].numpy()
++    vs = res['verb_scores'].numpy().astype(np.float64)  # [Q, V]
++    sub_ids = res['sub_ids'].numpy()
++    obj_ids = res['obj_ids'].numpy()
++    Q, V = vs.shape
++    verb_labels = np.tile(np.arange(V), (Q, 1)).ravel()
++    s_ids = np.tile(sub_ids, (V, 1)).T.ravel()
++    o_ids = np.tile(obj_ids, (V, 1)).T.ravel()
++    scores = vs.ravel()
++    if correct_mat is not None:
++        scores = scores * correct_mat[verb_labels, labels[o_ids]]
++    order = np.argsort(-scores, kind='stable')[:args.max_hois]
++    s_ids, o_ids, verb_labels, scores = s_ids[order], o_ids[order], verb_labels[order], scores[order]
++    if args.use_nms_filter and len(order):
++        keep_all = []
++        trip = {}
++        for k in range(len(order)):
++            key = (labels[s_ids[k]], labels[o_ids[k]], verb_labels[k])
++            trip.setdefault(key, []).append(k)
++        for key, idx in trip.items():
++            idx = np.array(idx)
++            kk = pairwise_nms(boxes[s_ids[idx]], boxes[o_ids[idx]], scores[idx], args.thres_nms, args.nms_alpha, args.nms_beta)
++            keep_all.extend(idx[kk].tolist())
++        keep_all = sorted(keep_all)  # keep score order
++        s_ids, o_ids, verb_labels, scores = s_ids[keep_all], o_ids[keep_all], verb_labels[keep_all], scores[keep_all]
++    # compact: keep only referenced boxes
++    used = sorted(set(s_ids.tolist()) | set(o_ids.tolist()))
++    remap = {b: i for i, b in enumerate(used)}
++    return {
++        'image_id': image_id,
++        'boxes': [[round(float(x), 2) for x in boxes[b]] for b in used],
++        'labels': [int(labels[b]) for b in used],
++        'box_scores': [round(float(box_scores[b]), 6) for b in used],
++        'hois': [{'subject_id': remap[int(s)], 'object_id': remap[int(o)], 'category_id': int(v), 'score': float(sc)}
++                 for s, o, v, sc in zip(s_ids, o_ids, verb_labels, scores)],
++    }
++
++
++def main():
++    ap = argparse.ArgumentParser()
++    ap.add_argument('--checkpoint', required=True)
++    ap.add_argument('--split', choices=('val', 'test'), required=True)
++    ap.add_argument('--output', required=True)
++    ap.add_argument('--hoi_path', required=True)
++    ap.add_argument('--text_encoder_type', default=None)
++    ap.add_argument('--batch_size', type=int, default=4)
++    ap.add_argument('--num_workers', type=int, default=4)
++    ap.add_argument('--limit', type=int, default=0, help='only run the first N images (others empty)')
++    ap.add_argument('--max_hois', type=int, default=100, help='HICOEvaluator.max_hois')
++    ap.add_argument('--also_nomask', action='store_true')
++    ap.add_argument('--corre', default=None,
++                    help='override co-occurrence mask .npy, bool [437 objects, 225 interactions] (same layout as '
++                         'corre_heir.npy; transposed to [interaction, object] exactly like the default)')
++    a = ap.parse_args()
++
++    ckpt = torch.load(a.checkpoint, map_location='cpu', weights_only=False)
++    args = ckpt['args']
++    args.hoi_path = a.hoi_path
++    args.batch_size = a.batch_size
++    args.distributed = False
++    args.pretrained = ''
++    args.resume = ''
++    if a.text_encoder_type:
++        args.text_encoder_type = a.text_encoder_type
++    args.max_hois = a.max_hois
++    device = torch.device('cuda')
++    torch.manual_seed(args.seed)
++
++    model, _, postprocessors = build_model(args)
++    info = model.load_state_dict(ckpt['model'], strict=True)
++    print('load:', info, 'epoch', ckpt.get('epoch'))
++    model.to(device).eval()
++
++    ds = build_dataset(image_set=a.split, args=args)
++    n = len(ds) if not a.limit else min(a.limit, len(ds))
++    sub = torch.utils.data.Subset(ds, list(range(n)))
++    loader = torch.utils.data.DataLoader(sub, batch_size=a.batch_size, shuffle=False, drop_last=False,
++                                         collate_fn=utils.collate_fn, num_workers=a.num_workers)
++
++    tr = model.transformer
++    with torch.no_grad():
++        if args.use_no_obj_token:
++            sums = torch.tensor([[len(ds.object_text) + 1, len(ds.verb_text)]])
++            flat_text = ds.object_text + ['no objects'] + ds.verb_text
++        else:
++            sums = torch.tensor([[len(ds.object_text), len(ds.verb_text)]])
++            flat_text = ds.object_text + ds.verb_text
++        tok = tr.tokenizer.batch_encode_plus(flat_text, padding='longest', return_tensors='pt').to(device)
++        text_memory = tr.text_encoder(**tok).pooler_output
++        if not (args.fusion_type == 'GLIP_attn'):
++            text_memory = tr.resizer(text_memory)
++
++    correct_mat = ds.correct_mat
++    if a.corre:
++        m = np.load(a.corre)
++        assert m.shape == (len(ds.object_text), len(ds.verb_text)), m.shape
++        correct_mat = m.T.astype(np.float64)
++        print('co-occurrence mask:', a.corre, 'allowed pairs:', int(m.sum()))
++    records = {'mask': [], 'nomask': []}
++    t0 = time.time()
++    with torch.no_grad():
++        for bi, (samples, targets) in enumerate(loader):
++            samples = samples.to(device)
++            bs = samples.tensors.shape[0]
++            mem = text_memory.unsqueeze(1).repeat(1, bs, 1)
++            mask = torch.zeros(mem.shape[:2], device=device).bool()
++            kwargs = {'text': (mask, mem, sums)}
++            memory_cache = model(samples, encode_and_save=True, **kwargs)
++            outputs = model(samples, encode_and_save=False, memory_cache=memory_cache, **kwargs)
++            if outputs['pred_verb_logits'].shape[2] == len(ds.verb_text) + 1:
++                outputs['pred_verb_logits'] = outputs['pred_verb_logits'][:, :, :-1]
++            orig_sizes = torch.stack([t['orig_size'] for t in targets]).to(device)
++            results = postprocessors['hoi'](outputs, orig_sizes)
++            obj_scores = F.softmax(outputs['pred_obj_logits'], -1)[..., :-1].max(-1)[0].cpu()
++            if 'pred_sub_logits' in outputs:
++                sub_scores = F.softmax(outputs['pred_sub_logits'], -1)[..., args.subject_category_id].cpu()
++            else:
++                sub_scores = torch.ones_like(obj_scores)
++            for t, res, osc, ssc in zip(targets, results, obj_scores, sub_scores):
++                box_scores = torch.cat([ssc, osc]).numpy()
++                records['mask'].append(image_record(t['image_id'], res, box_scores, correct_mat, args))
++                if a.also_nomask:
++                    records['nomask'].append(image_record(t['image_id'], res, box_scores, None, args))
++            if bi % 100 == 0:
++                print(f'[{a.split}] {bi * a.batch_size}/{n} images, {time.time() - t0:.1f}s', flush=True)
++
++    all_ids = [str(x['image_id']) for x in ds.annotations]
++    for kind, recs in records.items():
++        if kind == 'nomask' and not a.also_nomask:
++            continue
++        out = Path(a.output) if kind == 'mask' else Path(str(a.output).replace('.jsonl', '_nomask.jsonl'))
++        out.parent.mkdir(parents=True, exist_ok=True)
++        assert [r['image_id'] for r in recs] == all_ids[:n]
++        with open(out, 'w') as f:
++            for r in recs:
++                f.write(json.dumps(r) + '\n')
++            for iid in all_ids[n:]:
++                f.write(json.dumps({'image_id': iid, 'boxes': [], 'labels': [], 'box_scores': [], 'hois': []}) + '\n')
++        print('wrote', out, len(all_ids), 'lines;', n, 'with predictions')
++    print(f'export done in {time.time() - t0:.1f}s ({n / max(1e-6, time.time() - t0):.2f} img/s)')
++
++
++if __name__ == '__main__':
++    main()
+diff --git a/generate_vcoco_official.py b/generate_vcoco_official.py
+index 4e3db08..41d70e1 100644
+--- a/generate_vcoco_official.py
++++ b/generate_vcoco_official.py
+@@ -250,7 +250,7 @@ def get_args_parser():
+     parser.add_argument(
+         "--text_encoder_type",
+         default="roberta-base",
+-        choices=("roberta-base", "distilroberta-base", "roberta-large", "bert-base-uncased", "bert-base-cased"),
++        help="Hugging Face model name or a local directory with the same pretrained model.",
+     )
+     parser.add_argument(
+         "--freeze_text_encoder", action="store_true", help="Whether to freeze the weights of the text encoder"
+@@ -592,5 +592,3 @@ if __name__ == '__main__':
+     parser = argparse.ArgumentParser(parents=[get_args_parser()])
+     args = parser.parse_args()
+     main(args)
+-
+-    
+\ No newline at end of file
+diff --git a/main.py b/main.py
+index 8a98014..d940cdf 100644
+--- a/main.py
++++ b/main.py
+@@ -343,7 +343,7 @@ def get_args_parser():
+     parser.add_argument(
+         "--text_encoder_type",
+         default="roberta-base",
+-        choices=("roberta-base", "distilroberta-base", "roberta-large", "bert-base-uncased", "bert-base-cased"),
++        help="HF name or local directory (HEIR: local roberta-base dir; must contain 'roberta').",
+     )
+     parser.add_argument(
+         "--freeze_text_encoder", action="store_true", help="Whether to freeze the weights of the text encoder"
+@@ -486,8 +486,18 @@ def get_args_parser():
+     parser.add_argument('--world_size', default=1, type=int,
+                         help='number of distributed processes')
+     parser.add_argument('--dist_url', default='env://', help='url used to set up distributed training')
+-    
+-    
++
++    # HEIR adaptation
++    parser.add_argument('--skip_epoch_eval', action='store_true',
++                        help='HEIR: do not run the in-loop evaluation after every epoch (the final '
++                             'checkpoint is exported and scored with the shared HEIR scorer instead).')
++    parser.add_argument('--max_iters_per_epoch', default=0, type=int,
++                        help='HEIR smoke tests only: stop an epoch after this many iterations (0 = full epoch).')
++    parser.add_argument('--print_freq', default=600, type=int)
++    parser.add_argument('--accum_steps', default=1, type=int,
++                        help='HEIR: gradient accumulation (micro-batches per optimizer step); '
++                             'global batch = world_size * batch_size * accum_steps.')
++
+     return parser
+ 
+ 
+@@ -514,7 +524,13 @@ def main(args):
+     if args.distributed:
+         model = torch.nn.parallel.DistributedDataParallel(model, 
+                                                           device_ids=[args.gpu], 
+-                                                          find_unused_parameters=True)
++                                                          find_unused_parameters=True,
++                                                          # HEIR: the model is called twice per step (encode_and_save,
++                                                          # then decode); re-broadcasting buffers in the 2nd call modifies
++                                                          # RoBERTa's token_type_ids buffer (expanded view saved for
++                                                          # backward) in place -> autograd error on torch 2.7. All
++                                                          # buffers are constants (FrozenBN, position/token-type ids).
++                                                          broadcast_buffers=False)
+                                                           # find_unused_parameters=True) # Setting it True will causing problems in GLIP_attn.
+         model_without_ddp = model.module
+     n_parameters = sum(p.numel() for p in model.parameters() if p.requires_grad)
+@@ -592,7 +608,7 @@ def main(args):
+         base_ds = get_coco_api_from_dataset(dataset_val)
+ 
+     if args.frozen_weights is not None:
+-        checkpoint = torch.load(args.frozen_weights, map_location='cpu')
++        checkpoint = torch.load(args.frozen_weights, map_location='cpu', weights_only=False)
+         model_without_ddp.detr.load_state_dict(checkpoint['model'])
+ 
+     output_dir = Path(args.output_dir)
+@@ -601,7 +617,7 @@ def main(args):
+             checkpoint = torch.hub.load_state_dict_from_url(
+                 args.resume, map_location='cpu', check_hash=True)
+         else:
+-            checkpoint = torch.load(args.resume, map_location='cpu')
++            checkpoint = torch.load(args.resume, map_location='cpu', weights_only=False)
+         load_info = model_without_ddp.load_state_dict(checkpoint['model'])
+         print('Resuming ' + str(args.resume) + ' ...')
+         print('Loading Info: ' + str(load_info))
+@@ -611,9 +627,15 @@ def main(args):
+             lr_scheduler.load_state_dict(checkpoint['lr_scheduler'])
+             args.start_epoch = checkpoint['epoch'] + 1
+             print("Resume args.start_epoch.")
++        elif not args.eval and args.schedule is not None and 'optimizer' in checkpoint and 'epoch' in checkpoint:
++            # HEIR fix: with --schedule the lr is set per step by adjust_learning_rate and no
++            # lr_scheduler is saved, so upstream never restored the epoch/optimizer on resume.
++            optimizer.load_state_dict(checkpoint['optimizer'])
++            args.start_epoch = checkpoint['epoch'] + 1
++            print("Resume args.start_epoch = {} (step schedule).".format(args.start_epoch))
+     elif args.pretrained:
+ 
+-        checkpoint = torch.load(args.pretrained, map_location='cpu')
++        checkpoint = torch.load(args.pretrained, map_location='cpu', weights_only=False)
+         if args.DDETRHOI or args.ParSeD or args.RLIP_ParSeD or args.RLIP_ParSeD_v2:
+             share_verb_query = True if args.RLIP_ParSeD_v2 else False
+             checkpoint = utils.filter_ckpt_query_embed(checkpoint, num_queries = args.num_queries, share_verb_query = share_verb_query)
+@@ -758,7 +780,9 @@ def main(args):
+                 
+         coco_evaluator = None
+         test_stats = None
+-        if args.hoi:
++        if args.skip_epoch_eval:
++            pass
++        elif args.hoi:
+             if hasattr(model_without_ddp.transformer, 'text_encoder'):
+                 # cross-modal-matching 的eval代码
+                 # if epoch<=2 or epoch>=35:
+diff --git a/models/dab_deformable/deformable_transformer.py b/models/dab_deformable/deformable_transformer.py
+index fe89ecf..f42b3d0 100644
+--- a/models/dab_deformable/deformable_transformer.py
++++ b/models/dab_deformable/deformable_transformer.py
+@@ -331,8 +331,8 @@ class RLIP_ParSeDABDeformableTransformer_v2(nn.Module):
+ 
+         self.pass_pos_and_query = pass_pos_and_query
+         if "roberta" in text_encoder_type:
+-            self.tokenizer = RobertaTokenizerFast.from_pretrained(text_encoder_type, cache_dir = '/mnt/data-nas/peizhi/jacob/.cache/huggingface/transformers', local_files_only = True)
+-            self.text_encoder = RobertaModel.from_pretrained(text_encoder_type, cache_dir = '/mnt/data-nas/peizhi/jacob/.cache/huggingface/transformers', local_files_only = True)
++            self.tokenizer = RobertaTokenizerFast.from_pretrained(text_encoder_type, local_files_only=True)
++            self.text_encoder = RobertaModel.from_pretrained(text_encoder_type, local_files_only=True)
+         elif "bert" in text_encoder_type:
+             self.tokenizer = BertTokenizerFast.from_pretrained(text_encoder_type)
+             self.text_encoder = BertModel.from_pretrained(text_encoder_type)
+@@ -1800,4 +1800,4 @@ def gen_sineembed_for_position(pos_tensor):
+         pos = torch.cat((pos_y, pos_x, pos_w, pos_h), dim=2)
+     else:
+         raise ValueError("Unknown pos_tensor shape(-1):{}".format(pos_tensor.size(-1)))
+-    return pos
+\ No newline at end of file
++    return pos
+diff --git a/models/fuse_helper.py b/models/fuse_helper.py
+index 07fd11c..5279ff5 100644
+--- a/models/fuse_helper.py
++++ b/models/fuse_helper.py
+@@ -9,6 +9,8 @@ from torch import Tensor
+ import torch.nn.functional as F
+ import pdb
+ import math
++from pathlib import Path
++from transformers import AutoConfig
+ from util.misc import cat, permute_and_flatten
+ from timm.models.layers import DropPath
+ 
+@@ -1039,7 +1041,9 @@ class RLIPv2_VLFuse(torch.nn.Module):
+         self.t2i_hidden_dim = 1024  # 256 * 4
+         self.i2t_hidden_dim = 3072  # 768 * 4
+ 
+-        if self.lang_model in ["bert-base-uncased", "roberta-base", "clip"]:
++        if Path(self.lang_model).is_dir():
++            self.lang_dim = AutoConfig.from_pretrained(self.lang_model, local_files_only=True).hidden_size
++        elif self.lang_model in ["bert-base-uncased", "roberta-base", "clip"]:
+             self.lang_dim = 768 # after resizing: 256 # Original: 768 # cfg.MODEL.LANGUAGE_BACKBONE.LANG_DIM
+         else:
+             self.lang_dim = 1024
+@@ -1094,4 +1098,4 @@ class RLIPv2_VLFuse(torch.nn.Module):
+         features_dict = {"visual": fused_visual_dict_features,
+                          "lang": fused_language_dict_features}
+ 
+-        return features_dict
+\ No newline at end of file
++        return features_dict
+diff --git a/models/transformer.py b/models/transformer.py
+index 1250be8..1652f3d 100644
+--- a/models/transformer.py
++++ b/models/transformer.py
+@@ -1358,6 +1358,7 @@ def build_transformer(args):
+             two_stage=args.two_stage,
+             two_stage_num_proposals=args.num_queries,
+             use_dab=True,
++            text_encoder_type=args.text_encoder_type,
+             args = args
+             )
+     else:
