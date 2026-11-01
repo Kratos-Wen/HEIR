@@ -1,0 +1,10 @@
+{
+  "GroupHOI": {
+    "url": "https://github.com/JiajunHong1/GroupHOI",
+    "commit": "e9779a7c061de71cf4e250ab752ec947674dfbaf"
+  },
+  "CLIP": {
+    "url": "https://github.com/openai/CLIP",
+    "commit": "d05afc436d78f1c48dc0dbf8e5980a9d471f35f6"
+  }
+}

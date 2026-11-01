@@ -1,0 +1,11 @@
+{
+  "CLIP": {
+    "url": "https://github.com/openai/CLIP",
+    "commit": "d05afc436d78f1c48dc0dbf8e5980a9d471f35f6"
+  },
+  "pvic": {
+    "url": "https://github.com/fredzzhang/pvic",
+    "commit": "35dd43aaf23247e631f9300b46df3bb7d163dc02",
+    "submodules": true
+  }
+}

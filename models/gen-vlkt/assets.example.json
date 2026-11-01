@@ -1,0 +1,7 @@
+{
+  "GEN_VLKT_L_CLIP_MODEL": "/path/to/gen_vlkt_l_clip_model",
+  "GEN_VLKT_L_PARAM_PATH": "/path/to/gen_vlkt_l_param_path",
+  "GEN_VLKT_S_CLIP_MODEL": "/path/to/gen_vlkt_s_clip_model",
+  "GEN_VLKT_S_PARAM_PATH": "/path/to/gen_vlkt_s_param_path",
+  "VCOCO": "/path/to/vcoco"
+}

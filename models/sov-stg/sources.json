@@ -1,0 +1,10 @@
+{
+  "SOV-STG": {
+    "url": "https://github.com/cjw2021/SOV-STG",
+    "commit": "021bf1350aff91379a64da9bd1ec0cfe517cd02c"
+  },
+  "SOV-STG-VLA": {
+    "url": "https://github.com/cjw2021/SOV-STG-VLA",
+    "commit": "64db7ca320c2feb3872eb8648731b5a4e0630ccf"
+  }
+}

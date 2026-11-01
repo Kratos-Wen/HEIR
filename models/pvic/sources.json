@@ -1,0 +1,8 @@
+{
+  "pvic": {
+    "url": "https://github.com/fredzzhang/pvic",
+    "commit": "35dd43aaf23247e631f9300b46df3bb7d163dc02",
+    "submodules": true,
+    "patch": "patches/pvic.patch"
+  }
+}

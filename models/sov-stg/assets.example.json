@@ -1,0 +1,5 @@
+{
+  "SOV_STG_L_RESUME": "/path/to/sov_stg_l_resume",
+  "SOV_STG_VLA_S_RESUME": "/path/to/sov_stg_vla_s_resume",
+  "VCOCO": "/path/to/vcoco"
+}

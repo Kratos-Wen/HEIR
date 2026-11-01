@@ -1,0 +1,7 @@
+{
+  "SL-HOI": {
+    "url": "https://github.com/MPI-Lab/SL-HOI",
+    "commit": "64483cb35639198bbea66af500d1d05f8ac1e978",
+    "patch": "patches/SL-HOI.patch"
+  }
+}

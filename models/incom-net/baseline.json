@@ -1,0 +1,109 @@
+{
+  "assets": {
+    "CLIP": {
+      "mounts": [
+        [
+          "workspace/assets/incom_net_reproduction/ViT-L-14-336px.pt",
+          ""
+        ]
+      ]
+    },
+    "DETECTOR": {
+      "mounts": [
+        [
+          "pvic/checkpoints/detr-r50-vcoco.pth",
+          ""
+        ]
+      ]
+    },
+    "VCOCO": {
+      "mounts": [
+        [
+          "data/v-coco",
+          ""
+        ],
+        [
+          "workspace/reference_repos/pvic/vcoco/mscoco2014",
+          "images"
+        ]
+      ]
+    }
+  },
+  "commands": {
+    "sources": {
+      "argv": [
+        "{python}",
+        "{root}/workspace/fetch_sources.py"
+      ],
+      "assets": [],
+      "cwd": "{root}/workspace",
+      "distributed": false,
+      "run_name": "sources",
+      "world_size": 1,
+      "pythonpath": [
+        "workspace"
+      ]
+    },
+    "prepare": {
+      "argv": [
+        "{python}",
+        "-m",
+        "reproductions.incom_vcoco_complete.run",
+        "--mode",
+        "prepare",
+        "--output",
+        "{output}"
+      ],
+      "assets": [
+        "VCOCO",
+        "DETECTOR",
+        "CLIP"
+      ],
+      "cwd": "{root}/workspace",
+      "distributed": false,
+      "run_name": "incom",
+      "world_size": 1
+    },
+    "test": {
+      "argv": [
+        "{python}",
+        "-m",
+        "reproductions.incom_vcoco_complete.run",
+        "--mode",
+        "test",
+        "--output",
+        "{output}"
+      ],
+      "assets": [
+        "VCOCO",
+        "DETECTOR",
+        "CLIP"
+      ],
+      "cwd": "{root}/workspace",
+      "distributed": false,
+      "run_name": "incom",
+      "world_size": 1
+    },
+    "train": {
+      "argv": [
+        "{python}",
+        "-m",
+        "reproductions.incom_vcoco_complete.run",
+        "--mode",
+        "train",
+        "--output",
+        "{output}"
+      ],
+      "assets": [
+        "VCOCO",
+        "DETECTOR",
+        "CLIP"
+      ],
+      "cwd": "{root}/workspace",
+      "distributed": true,
+      "run_name": "incom",
+      "world_size": 8
+    }
+  },
+  "family": "incom-net"
+}

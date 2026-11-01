@@ -1,0 +1,5 @@
+{
+  "CLIP": "/path/to/clip",
+  "DETECTOR": "/path/to/detector",
+  "VCOCO": "/path/to/vcoco"
+}
