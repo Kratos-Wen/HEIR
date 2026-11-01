@@ -1,0 +1,14 @@
+CoRISP: Compositional Role-aware Interaction Set Prediction
+Copyright (c) 2026 CoRISP contributors.
+
+Original CoRISP contributions are licensed under the PolyForm
+Noncommercial License 1.0.0 in LICENSE.
+
+Third-party source code is not included. scripts/fetch_vendor.py
+retrieves it at pinned commits into vendor/, where it retains its
+existing licenses and copyright notices; see THIRD_PARTY.md. The root
+license does not replace those terms.
+
+Dataset access and pretrained-weight licenses are separate from this
+source-code license. No dataset or pretrained or trained weight is
+distributed in this repository.

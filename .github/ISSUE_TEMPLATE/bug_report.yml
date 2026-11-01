@@ -1,0 +1,34 @@
+name: Bug report
+description: Report a reproducible implementation or installation problem.
+title: "[Bug] "
+body:
+  - type: markdown
+    attributes:
+      value: "Use synthetic inputs where possible. Do not attach credentials, private paths, datasets, prediction caches or checkpoints. Follow SECURITY.md for sensitive reports."
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Source revision, OS, Python, PyTorch, torchvision and CUDA versions.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal reproduction
+      description: Commands and the smallest input needed to reproduce the issue.
+      render: shell
+    validations:
+      required: true
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Expected and observed behavior
+      description: Include the sanitized error or traceback and which dataset interface is involved.
+    validations:
+      required: true
+  - type: textarea
+    id: checks
+    attributes:
+      label: Checks already performed
+      description: Results of the synthetic example, test suite or troubleshooting steps.

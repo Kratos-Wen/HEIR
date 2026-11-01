@@ -1,0 +1,70 @@
+{
+  "repo_id": "KratosWen/HEIR",
+  "revision": "99d2d1ab6111dfe814675029be1002cefca17cc6",
+  "release": "v1.0",
+  "image_revision": "99d2d1ab6111dfe814675029be1002cefca17cc6",
+  "split_counts": {
+    "train": 15158,
+    "val": 615,
+    "test": 2957
+  },
+  "image_count": 18730,
+  "image_bytes": 4244956196,
+  "files": {
+    "vocabulary.json": {
+      "path": "release/v1.0/vocabulary.json",
+      "sha256": "1ed0d712eb8a00d39a6c68dd50fc76c5eb77405594bd9f2ea13657870c792f69",
+      "size": 165030
+    },
+    "annotations/train.json": {
+      "path": "release/v1.0/annotations/train.json",
+      "sha256": "78ff1fa90ce90dbac6feb924dcf8c3e5dff7fe4e9470eec236e774d147805064",
+      "size": 12317665
+    },
+    "annotations/val.json": {
+      "path": "release/v1.0/annotations/val.json",
+      "sha256": "ad2d11d9b70749fd54c5f85bdfeb462610ca466fdedf252fc77df1467516e878",
+      "size": 560932
+    },
+    "annotations/test.json": {
+      "path": "release/v1.0/annotations/test.json",
+      "sha256": "a450a2c64a33ab833ee47c7f5da4d7e6e762c7006f390dd786c67d75133924bd",
+      "size": 2556519
+    },
+    "images.json": {
+      "path": "release/v1.0/images.json",
+      "sha256": "17ecd5fe2b1a45aaf76fd5caa6520cc899e3cf94f91f31889c14c4b13e781503",
+      "size": 5738249
+    },
+    "image_files.json": {
+      "path": "release/v1.0/image_files.json",
+      "sha256": "43792fd254f30d908ff8c7e5cee3563b15f665181260390394b18fcde8635299",
+      "size": 3907859
+    },
+    "MANIFEST.sha256": {
+      "path": "release/v1.0/MANIFEST.sha256",
+      "sha256": "7055b6b45fa1ccb5bce5468639d58014126a3b5c4abf68ae418d06492fbe4980",
+      "size": 507
+    },
+    "CITATION.bib": {
+      "path": "CITATION.bib",
+      "sha256": "68ced2cda382ea5a2ccba9f4a7d38ba499b83ce7fdd2f37890317fb65abb0641",
+      "size": 524
+    },
+    "LICENSE-CC-BY-4.0.txt": {
+      "path": "LICENSE-CC-BY-4.0.txt",
+      "sha256": "9ba9550ad48438d0836ddab3da480b3b69ffa0aac7b7878b5a0039e7ab429411",
+      "size": 18657
+    },
+    "LICENSE.md": {
+      "path": "LICENSE.md",
+      "sha256": "ab788d3ef641463e7fe313e2a4a909d05b4e6e20f847ca111a078177cffe617d",
+      "size": 968
+    },
+    "README.md": {
+      "path": "README.md",
+      "sha256": "68576b5db74b839d49cdbbb0fa66055e4a01ad09a0d4a3f52d4e2160c6880ef9",
+      "size": 3505
+    }
+  }
+}
