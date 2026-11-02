@@ -2,6 +2,30 @@
 
 The repository contains source and synthetic examples only. HEIR is hosted separately on [Hugging Face](https://huggingface.co/datasets/KratosWen/HEIR); follow the [dataset release and download guide](DATASET.md). Supply local files you are authorized to use.
 
+## Released weights
+
+The trained models and the files they depend on are in the [CoRISP checkpoints](https://drive.google.com/drive/folders/1yxgDVaxl0HzZ860GuX3Iry2vozDIYwuo) folder:
+
+```bash
+python -m pip install gdown
+gdown --folder https://drive.google.com/drive/folders/1yxgDVaxl0HzZ860GuX3Iry2vozDIYwuo -O checkpoints
+```
+
+| File | Set as | Contents |
+| --- | --- | --- |
+| `corisp_heir.pth` | `CORISP_CHECKPOINT` | CoRISP on HEIR, the model in the paper's results table |
+| `heir_detector.pth` | `HEIR_DETECTOR` | H-DETR Swin-L detector trained on HEIR |
+| `heir_prototypes.pt` | `HEIR_PROTOTYPES` | Vocabulary-aligned semantic prototypes |
+| `compatibility.json` | `HEIR_COMPATIBILITY` | Admissible action--noun--role combinations |
+| `heir_support.csv` | | The same combinations as a table, used by the baseline evaluation tools |
+| `corisp_vcoco.pth` | `RESUME` | CoRISP on V-COCO, the model in the paper's results table |
+| `vcoco_prototypes.pt` | `VCOCO_PROTOTYPES` | V-COCO action and object prototypes |
+| `vcoco_role_prototypes.pt` | `VCOCO_ROLE_PROTOTYPES` | V-COCO role prototypes |
+
+`corisp_vcoco.pth` contains the frozen DINOv3 and DINO.txt weights, which are distributed under Meta's DINOv3 agreement; `LICENSE_DINOv3.md` in the folder is a copy. The DINOv3 files for `CORISP_WEIGHTS` are not in the folder.
+
+## Local configuration
+
 | Variable or argument | Required input |
 | --- | --- |
 | `CORISP_WEIGHTS` | Directory containing `dinov3_vitl16_pretrain_lvd1689m-8aa4cbdd.pth` and `dinov3_vitl16_dinotxt_vision_head_and_text_encoder-a442d8f5.pth` |
@@ -9,7 +33,7 @@ The repository contains source and synthetic examples only. HEIR is hosted separ
 | `HEIR_DETECTOR` / `--detector` | HEIR H-DETR detector checkpoint |
 | `HEIR_PROTOTYPES` / `--prototypes` | Vocabulary-aligned semantic prototypes |
 | `HEIR_COMPATIBILITY` / `--compatibility` | Shared action--noun--role support inventory |
-| `CORISP_CHECKPOINT` / `--checkpoint` | Validation-selected checkpoint from `corisp_heir.train` |
+| `CORISP_CHECKPOINT` / `--checkpoint` | `corisp_heir.pth`, or a validation-selected checkpoint from `corisp_heir.train` |
 | `HDETR_CKPT` | V-COCO H-DETR initialization (`h-defm-detr-swinL-dp0-mqs-lft-iter-2stg-vcoco.pth`) |
 | `VCOCO_ROOT` | V-COCO images and the dataset files expected by the bundled PViC loader |
 | `VCOCO_OFFICIAL_ROOT` | Official annotations, split IDs and `vsrl_eval.py` |

@@ -55,6 +55,6 @@ Compilation may use more memory than the numerical tests. Set the job's memory a
 
 ## Local inputs
 
-The [dataset guide](DATASET.md) covers the HEIR download; no command downloads weights. Configure the files listed in [Assets](ASSETS.md) and follow [Training and Evaluation](REPRODUCTION.md). A source checkout must retain its `configs/`, `src/` and integration directories and the fetched `vendor/`; copying only the model file is insufficient.
+The [dataset guide](DATASET.md) covers the HEIR download. [Assets](ASSETS.md) covers the released weights and the files to configure. Follow [Training and Evaluation](REPRODUCTION.md). A source checkout must retain its `configs/`, `src/` and integration directories and the fetched `vendor/`; copying only the model file is insufficient.
 
 CI exercises the CPU example, release hygiene and synthetic tests. It does not train a model or certify benchmark reproduction without the required external assets.

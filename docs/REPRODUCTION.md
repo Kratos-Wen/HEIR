@@ -31,7 +31,7 @@ The global batch is twice the world size. `--compile-dp` compiles the same exact
 The trainer saves one checkpoint per epoch and does not rank them. Select one checkpoint per trained model by validation Role mAP: export predictions with `corisp_heir.predict --split val`, keep the 100 highest `role_scores` per image, and score them with `scorer/evaluate_heir_predictions.py` on the [`reproductions/heir-baselines`](https://github.com/Kratos-Wen/HEIR/tree/reproductions/heir-baselines) branch. Set the selected path and use it for every test metric and visualization:
 
 ```bash
-export CORISP_CHECKPOINT=/path/to/validation_selected_model.pth
+export CORISP_CHECKPOINT=/path/to/corisp_heir.pth
 python -m corisp_heir.predict \
   --data "$HEIR_DATA" --split test --detector "$HEIR_DETECTOR" \
   --prototypes "$HEIR_PROTOTYPES" --compatibility "$HEIR_COMPATIBILITY" \
@@ -40,7 +40,7 @@ python -m corisp_heir.predict \
 
 Set prediction uses K=8 and a 100-set image budget. Relation marginals are exported alongside the sets and are not truncated before set prediction.
 
-The predictor accepts checkpoints saved by the supplied trainer and checks that the support inventory, vocabulary, detector and prototypes are the ones recorded in the checkpoint. Each JSONL record contains original-resolution `entities`, shared image-local IDs, native `sets`, and dense `role_scores` indexed by `pairs`, `actions`, and `roles`. Only load trusted checkpoints and prediction caches: PyTorch and pickle inputs can execute code during deserialization.
+The predictor accepts `corisp_heir.pth` and checkpoints saved by the supplied trainer, and checks that the support inventory, vocabulary, detector and prototypes are the ones recorded in the checkpoint. Each JSONL record contains original-resolution `entities`, shared image-local IDs, native `sets`, and dense `role_scores` indexed by `pairs`, `actions`, and `roles`. Only load trusted checkpoints and prediction caches: PyTorch and pickle inputs can execute code during deserialization.
 
 Score the submitted sets on CPU:
 
