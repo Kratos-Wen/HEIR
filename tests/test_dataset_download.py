@@ -1,6 +1,8 @@
 """Integrity and filesystem guarantees for dataset downloads; no network needed."""
 import hashlib
 import io
+from http.client import RemoteDisconnected
+from urllib.error import HTTPError
 
 import pytest
 
@@ -54,3 +56,31 @@ def test_successful_download_and_stale_partial_file(tmp_path, monkeypatch):
     fetch("https://example.invalid/file", path, digest, 4)
     assert path.read_bytes() == b"good"
     assert not partial.exists()
+
+
+def test_fetch_retries_a_dropped_connection(tmp_path, monkeypatch):
+    payload = b"heir"
+    responses = [RemoteDisconnected("closed"), HTTPError("url", 429, "busy", {"Retry-After": "3"}, None), payload]
+
+    def connect(*args, **kwargs):
+        result = responses.pop(0)
+        if isinstance(result, Exception):
+            raise result
+        return io.BytesIO(result)
+
+    delays = []
+    monkeypatch.setattr("scripts.download_heir.urlopen", connect)
+    monkeypatch.setattr("scripts.download_heir.time.sleep", delays.append)
+    target = tmp_path / "file.bin"
+    fetch("https://example.invalid", target, hashlib.sha256(payload).hexdigest(), len(payload))
+    assert target.read_bytes() == payload and delays == [2, 4]
+
+
+def test_fetch_does_not_retry_a_missing_file(tmp_path, monkeypatch):
+    def connect(*args, **kwargs):
+        raise HTTPError("url", 404, "missing", {}, None)
+
+    monkeypatch.setattr("scripts.download_heir.urlopen", connect)
+    with pytest.raises(HTTPError):
+        fetch("https://example.invalid", tmp_path / "file.bin", "0" * 64, 1)
+    assert not (tmp_path / "file.bin.part").exists()

@@ -5,13 +5,17 @@ full downloads and verification on a compute node with explicit resources.
 """
 import argparse
 import hashlib
+from http.client import HTTPException
 import json
 from pathlib import Path
 import re
+import time
+from urllib.error import HTTPError
 from urllib.parse import quote
 from urllib.request import urlopen
 
 ROOT = Path(__file__).resolve().parents[1]
+ATTEMPTS = 8
 
 
 def destination(root, relative):
@@ -31,6 +35,28 @@ def checksum(path):
     return digest.hexdigest()
 
 
+def stream(url, output):
+    """Retry connection failures, rate limits and server errors; other HTTP errors stop the download."""
+    for attempt in range(1, ATTEMPTS + 1):
+        wait = 2 ** attempt
+        try:
+            with urlopen(url, timeout=60) as response:
+                for chunk in iter(lambda: response.read(1024 * 1024), b""):
+                    output.write(chunk)
+            return
+        except HTTPError as error:
+            if attempt == ATTEMPTS or (error.code != 429 and error.code < 500):
+                raise
+            retry_after = error.headers.get("Retry-After", "") if error.headers else ""
+            wait = max(wait, int(retry_after) if retry_after.isdigit() else 0)
+        except (OSError, HTTPException):
+            if attempt == ATTEMPTS:
+                raise
+        output.seek(0)
+        output.truncate()
+        time.sleep(wait)
+
+
 def fetch(url, path, expected, size, verify_only=False):
     """Keep existing files intact; install a new download only after validation."""
     if path.exists():
@@ -45,9 +71,7 @@ def fetch(url, path, expected, size, verify_only=False):
         # Exclusive creation prevents simultaneous runs from sharing a partial file.
         with temporary.open("xb") as output:
             try:
-                with urlopen(url, timeout=60) as response:
-                    for chunk in iter(lambda: response.read(1024 * 1024), b""):
-                        output.write(chunk)
+                stream(url, output)
             except Exception:
                 output.close()
                 temporary.unlink(missing_ok=True)

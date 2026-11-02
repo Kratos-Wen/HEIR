@@ -46,7 +46,7 @@ To verify an existing full download without network access:
 python scripts/download_heir.py --output data/HEIR --verify-only
 ```
 
-The downloader uses the exact Hugging Face commits and metadata checksums recorded in [configs/heir_dataset.json](../configs/heir_dataset.json). It downloads one file at a time, checks size and SHA-256, and reuses verified local files. A mismatch stops the download and preserves existing data. After an interrupted run, remove only the named `.part` file before retrying.
+The downloader uses the exact Hugging Face commits and metadata checksums recorded in [configs/heir_dataset.json](../configs/heir_dataset.json). It downloads one file at a time, retries transient network errors, checks size and SHA-256, and reuses verified local files. A mismatch stops the download and preserves existing data. After an interrupted run, remove only the named `.part` file before retrying.
 
 ```text
 HEIR/
