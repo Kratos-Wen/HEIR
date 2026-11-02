@@ -28,7 +28,7 @@ torchrun --standalone --nproc-per-node=4 -m corisp_heir.train \
 
 The global batch is twice the world size. `--compile-dp` compiles the same exact recurrence. `--ablation no_arity` removes G; `--ablation no_relations` removes contextual relation messages; `--ablation no_role_feedback` removes recurrent role content and uses interaction-only message weights. The final role classifier remains active. These controls preserve the set-decoding rule. Resume with `--resume` and the same configuration, inputs and world size.
 
-The trainer saves one checkpoint per epoch and does not rank them. Select one checkpoint per trained model by validation Role mAP: export predictions with `corisp_heir.predict --split val`, keep the 100 highest `role_scores` per image, and score them with `scorer/evaluate_heir_predictions.py` on the [`reproductions/heir-baselines`](https://github.com/Kratos-Wen/HEIR/tree/reproductions/heir-baselines) branch. Set the selected path and use it for every test metric and visualization:
+The trainer saves one checkpoint per epoch and does not rank them. Select one checkpoint per trained model by validation Role mAP: export predictions with `corisp_heir.predict --split val`, convert them with `scorer/export_corisp_relations.py`, which keeps the 100 highest `role_scores` per image, and score them with `scorer/evaluate_heir_predictions.py` on the [`reproductions/heir-baselines`](https://github.com/Kratos-Wen/HEIR/tree/reproductions/heir-baselines) branch. Set the selected path and use it for every test metric and visualization:
 
 ```bash
 export CORISP_CHECKPOINT=/path/to/corisp_heir.pth

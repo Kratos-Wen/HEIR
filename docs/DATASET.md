@@ -19,11 +19,11 @@ The vocabulary contains 105 actions, 437 nouns and six functional roles. **v1.0*
 
 The download script below also installs these files and checks their hashes. For manual access:
 
-- [Train annotations](https://huggingface.co/datasets/KratosWen/HEIR/resolve/99d2d1ab6111dfe814675029be1002cefca17cc6/release/v1.0/annotations/train.json)
-- [Validation annotations](https://huggingface.co/datasets/KratosWen/HEIR/resolve/99d2d1ab6111dfe814675029be1002cefca17cc6/release/v1.0/annotations/val.json)
-- [Test annotations](https://huggingface.co/datasets/KratosWen/HEIR/resolve/99d2d1ab6111dfe814675029be1002cefca17cc6/release/v1.0/annotations/test.json)
-- [Vocabulary](https://huggingface.co/datasets/KratosWen/HEIR/resolve/99d2d1ab6111dfe814675029be1002cefca17cc6/release/v1.0/vocabulary.json)
-- [Image provenance](https://huggingface.co/datasets/KratosWen/HEIR/resolve/99d2d1ab6111dfe814675029be1002cefca17cc6/release/v1.0/images.json)
+- [Train annotations](https://huggingface.co/datasets/KratosWen/HEIR/resolve/f75d923755f399f14ee0e40a9fefb6c045e2b62d/release/v1.0/annotations/train.json)
+- [Validation annotations](https://huggingface.co/datasets/KratosWen/HEIR/resolve/f75d923755f399f14ee0e40a9fefb6c045e2b62d/release/v1.0/annotations/val.json)
+- [Test annotations](https://huggingface.co/datasets/KratosWen/HEIR/resolve/f75d923755f399f14ee0e40a9fefb6c045e2b62d/release/v1.0/annotations/test.json)
+- [Vocabulary](https://huggingface.co/datasets/KratosWen/HEIR/resolve/f75d923755f399f14ee0e40a9fefb6c045e2b62d/release/v1.0/vocabulary.json)
+- [Image provenance](https://huggingface.co/datasets/KratosWen/HEIR/resolve/f75d923755f399f14ee0e40a9fefb6c045e2b62d/release/v1.0/images.json)
 
 ## Download
 

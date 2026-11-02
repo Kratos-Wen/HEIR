@@ -1,8 +1,8 @@
 {
   "repo_id": "KratosWen/HEIR",
-  "revision": "99d2d1ab6111dfe814675029be1002cefca17cc6",
+  "revision": "f75d923755f399f14ee0e40a9fefb6c045e2b62d",
   "release": "v1.0",
-  "image_revision": "99d2d1ab6111dfe814675029be1002cefca17cc6",
+  "image_revision": "f75d923755f399f14ee0e40a9fefb6c045e2b62d",
   "split_counts": {
     "train": 15158,
     "val": 615,
@@ -63,8 +63,8 @@
     },
     "README.md": {
       "path": "README.md",
-      "sha256": "68576b5db74b839d49cdbbb0fa66055e4a01ad09a0d4a3f52d4e2160c6880ef9",
-      "size": 3505
+      "sha256": "bf58fb19dc328c6179ec00f9fd7e51ea799577a4ec5a9dae7cac2e36b5d88e32",
+      "size": 3502
     }
   }
 }
